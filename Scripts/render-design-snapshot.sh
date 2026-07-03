@@ -10,15 +10,15 @@ WIDTH="${4:-1280}"
 HEIGHT="${5:-800}"
 SWIFTC="${SWIFTC:-/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc}"
 SDKROOT="${SDKROOT:-/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk}"
-CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-/private/tmp/voice-to-markdown-clang-cache}"
+CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-/private/tmp/whisperdown-clang-cache}"
 export CLANG_MODULE_CACHE_PATH
 
 mkdir -p "$BUILD_DIR"
 
 sources=()
-for file in "$ROOT_DIR"/Sources/VoiceToMarkdown/*.swift; do
+for file in "$ROOT_DIR"/Sources/Whisperdown/*.swift; do
   case "$(basename "$file")" in
-    VoiceToMarkdownApp.swift)
+    WhisperdownApp.swift)
       ;;
     *)
       sources+=("$file")

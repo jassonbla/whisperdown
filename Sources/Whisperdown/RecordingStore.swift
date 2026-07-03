@@ -7,7 +7,7 @@ final class RecordingStore: ObservableObject {
     @Published private(set) var markdownDirectory: URL
 
     private let fileManager = FileManager.default
-    private let metadataDirectoryName = ".voice-to-markdown"
+    private let metadataDirectoryName = ".whisperdown"
     private let audioDirectoryName = "Recordings"
     private let indexFileName = "index.json"
 
@@ -18,7 +18,7 @@ final class RecordingStore: ObservableObject {
         } else {
             let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
                 ?? fileManager.homeDirectoryForCurrentUser
-            markdownDirectory = documents.appendingPathComponent("Voice to Markdown", isDirectory: true)
+            markdownDirectory = documents.appendingPathComponent("Whisperdown", isDirectory: true)
         }
 
         ensureDirectories()

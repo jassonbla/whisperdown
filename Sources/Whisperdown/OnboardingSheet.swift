@@ -60,7 +60,7 @@ struct OnboardingSheet: View {
                 .padding(.top, Spacing.xxl)
 
             VStack(spacing: Spacing.sm) {
-                Text("Voice to Markdown")
+                Text("Whisperdown")
                     .font(Typography.largeTitle)
                     .foregroundStyle(Palette.label)
 

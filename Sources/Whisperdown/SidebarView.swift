@@ -77,7 +77,7 @@ struct SidebarView: View {
                             .font(Typography.headline)
                             .foregroundStyle(Palette.label.opacity(0.92))
                         HStack(spacing: 0) {
-                            Text("Voice to Markdown · ")
+                            Text("Whisperdown · ")
                                 .font(AppTypography.meta)
                             Text("\(recordingCount)개")
                                 .font(AppTypography.meta)

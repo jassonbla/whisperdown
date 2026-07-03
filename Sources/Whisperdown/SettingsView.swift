@@ -62,7 +62,7 @@ private struct GeneralSettingsView: View {
         UserDefaults.standard.string(forKey: "markdownDirectory")
             ?? (FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
                 ?? FileManager.default.homeDirectoryForCurrentUser)
-                .appendingPathComponent("Voice to Markdown").path
+                .appendingPathComponent("Whisperdown").path
     }
 
     private func chooseDirectory() {

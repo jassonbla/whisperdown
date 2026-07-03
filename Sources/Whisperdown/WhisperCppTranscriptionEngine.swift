@@ -31,7 +31,7 @@ struct WhisperCppTranscriptionEngine: Sendable {
         }
 
         let workingDirectory = fileManager.temporaryDirectory
-            .appendingPathComponent("VoiceToMarkdown-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("Whisperdown-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
         defer {
             try? fileManager.removeItem(at: workingDirectory)
@@ -46,6 +46,7 @@ struct WhisperCppTranscriptionEngine: Sendable {
             executableURL: ffmpegURL,
             arguments: [
                 "-y",
+                "-nostdin",
                 "-i", audio.url.path,
                 "-ar", "16000",
                 "-ac", "1",
@@ -97,7 +98,7 @@ struct WhisperCppTranscriptionEngine: Sendable {
 
     private var executableURL: URL? {
         firstExistingFile([
-            environmentURL("VOICE_TO_MARKDOWN_WHISPER_CLI"),
+            environmentURL("WHISPERDOWN_WHISPER_CLI"),
             Bundle.main.url(forResource: "whisper-cli", withExtension: nil),
             URL(fileURLWithPath: "/opt/homebrew/bin/whisper-cli"),
             URL(fileURLWithPath: "/usr/local/bin/whisper-cli")
@@ -106,7 +107,7 @@ struct WhisperCppTranscriptionEngine: Sendable {
 
     private var ffmpegURL: URL? {
         firstExistingFile([
-            environmentURL("VOICE_TO_MARKDOWN_FFMPEG"),
+            environmentURL("WHISPERDOWN_FFMPEG"),
             URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg"),
             URL(fileURLWithPath: "/usr/local/bin/ffmpeg"),
             URL(fileURLWithPath: "/usr/bin/ffmpeg")
@@ -114,7 +115,7 @@ struct WhisperCppTranscriptionEngine: Sendable {
     }
 
     private var modelURL: URL? {
-        if let environmentModel = environmentURL("VOICE_TO_MARKDOWN_WHISPER_MODEL"),
+        if let environmentModel = environmentURL("WHISPERDOWN_WHISPER_MODEL"),
            fileManager.fileExists(atPath: environmentModel.path) {
             return environmentModel
         }
@@ -148,7 +149,7 @@ struct WhisperCppTranscriptionEngine: Sendable {
     }
 
     private var usesGPU: Bool {
-        let value = ProcessInfo.processInfo.environment["VOICE_TO_MARKDOWN_WHISPER_GPU"]?
+        let value = ProcessInfo.processInfo.environment["WHISPERDOWN_WHISPER_GPU"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
@@ -162,7 +163,7 @@ struct WhisperCppTranscriptionEngine: Sendable {
             ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
 
         return appSupport
-            .appendingPathComponent("Voice to Markdown", isDirectory: true)
+            .appendingPathComponent("Whisperdown", isDirectory: true)
             .appendingPathComponent("Models", isDirectory: true)
     }
 
@@ -192,6 +193,7 @@ struct WhisperCppTranscriptionEngine: Sendable {
 
             process.executableURL = executableURL
             process.arguments = arguments
+            process.standardInput = FileHandle.nullDevice
             process.standardOutput = outputPipe
             process.standardError = errorPipe
 
@@ -288,9 +290,9 @@ enum WhisperCppError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .executableMissing:
-            return "whisper.cpp 실행 파일 whisper-cli를 찾지 못했습니다. Homebrew whisper-cpp를 설치하거나 VOICE_TO_MARKDOWN_WHISPER_CLI를 설정해 주세요."
+            return "whisper.cpp 실행 파일 whisper-cli를 찾지 못했습니다. Homebrew whisper-cpp를 설치하거나 WHISPERDOWN_WHISPER_CLI를 설정해 주세요."
         case .modelMissing(let directory):
-            return "whisper.cpp 모델 파일을 찾지 못했습니다. ggml 모델을 \(directory)에 넣거나 VOICE_TO_MARKDOWN_WHISPER_MODEL을 설정해 주세요."
+            return "whisper.cpp 모델 파일을 찾지 못했습니다. ggml 모델을 \(directory)에 넣거나 WHISPERDOWN_WHISPER_MODEL을 설정해 주세요."
         case .ffmpegMissing:
             return "오디오 변환에 필요한 ffmpeg를 찾지 못했습니다."
         case .emptyTranscript:

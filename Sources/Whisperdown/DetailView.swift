@@ -129,7 +129,7 @@ struct DetailView: View {
                 subtitle: "\(AppFormatters.displayDate.string(from: recording.createdAt))  \(AppFormatters.duration(recording.duration))"
             )
         } else {
-            RecordingTitle(title: "Voice to Markdown", subtitle: "00:00")
+            RecordingTitle(title: "Whisperdown", subtitle: "00:00")
         }
     }
 

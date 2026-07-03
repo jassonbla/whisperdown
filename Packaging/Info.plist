@@ -5,13 +5,15 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>ko</string>
     <key>CFBundleExecutable</key>
-    <string>VoiceToMarkdown</string>
+    <string>Whisperdown</string>
     <key>CFBundleIdentifier</key>
-    <string>local.voice-to-markdown.app</string>
+    <string>local.whisperdown.app</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Voice to Markdown</string>
+    <string>Whisperdown</string>
+    <key>CFBundleDisplayName</key>
+    <string>Whisperdown</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

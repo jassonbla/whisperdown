@@ -215,17 +215,17 @@ struct RootView: View {
     }
 
     /// 개발/검증용 훅. 화면 포커스 없이 특정 상태를 재현한다.
-    /// - VOICE_TO_MARKDOWN_ONBOARDING_STEP=welcome|diagnostics|modelPicker : 온보딩 특정 스텝 강제
-    /// - VOICE_TO_MARKDOWN_AUTODOWNLOAD=<fileName> : 해당 모델 자동 다운로드 시작
+    /// - WHISPERDOWN_ONBOARDING_STEP=welcome|diagnostics|modelPicker : 온보딩 특정 스텝 강제
+    /// - WHISPERDOWN_AUTODOWNLOAD=<fileName> : 해당 모델 자동 다운로드 시작
     private func applyDeveloperHooks() {
         let environment = ProcessInfo.processInfo.environment
 
-        if let raw = environment["VOICE_TO_MARKDOWN_ONBOARDING_STEP"],
+        if let raw = environment["WHISPERDOWN_ONBOARDING_STEP"],
            let step = OnboardingSheet.Step(rawValue: raw) {
             onboardingStep = step
         }
 
-        if let fileName = environment["VOICE_TO_MARKDOWN_AUTODOWNLOAD"],
+        if let fileName = environment["WHISPERDOWN_AUTODOWNLOAD"],
            let model = ModelCatalog.all.first(where: { $0.fileName == fileName }) {
             modelManager.startDownload(model)
         }

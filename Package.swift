@@ -3,16 +3,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "VoiceToMarkdown",
+    name: "Whisperdown",
     platforms: [
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "VoiceToMarkdown", targets: ["VoiceToMarkdown"])
+        .executable(name: "Whisperdown", targets: ["Whisperdown"])
     ],
     targets: [
         .executableTarget(
-            name: "VoiceToMarkdown",
+            name: "Whisperdown",
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("AVFoundation"),

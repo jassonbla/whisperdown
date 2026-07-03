@@ -3,11 +3,11 @@ set -euo pipefail
 
 MODEL_NAME="${MODEL_NAME:-ggml-large-v3-turbo.bin}"
 MODEL_URL="${MODEL_URL:-https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${MODEL_NAME}}"
-MODEL_DIR="${VOICE_TO_MARKDOWN_MODEL_DIR:-$HOME/Library/Application Support/Voice to Markdown/Models}"
+MODEL_DIR="${WHISPERDOWN_MODEL_DIR:-$HOME/Library/Application Support/Whisperdown/Models}"
 
 if ! command -v brew >/dev/null 2>&1; then
   echo "Homebrew is required to install whisper.cpp automatically."
-  echo "Install whisper.cpp manually and set VOICE_TO_MARKDOWN_WHISPER_CLI."
+  echo "Install whisper.cpp manually and set WHISPERDOWN_WHISPER_CLI."
   exit 1
 fi
 

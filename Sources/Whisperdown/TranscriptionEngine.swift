@@ -28,7 +28,7 @@ enum TranscriptionEngineError: LocalizedError {
             return """
             whisper.cpp가 아직 설정되지 않았고 Apple Speech fallback도 실패했습니다.
 
-            whisper.cpp 설치 후 모델 파일을 ~/Library/Application Support/Voice to Markdown/Models/ 에 넣어 주세요.
+            whisper.cpp 설치 후 모델 파일을 ~/Library/Application Support/Whisperdown/Models/ 에 넣어 주세요.
 
             Apple Speech 오류: \(fallbackError)
             """

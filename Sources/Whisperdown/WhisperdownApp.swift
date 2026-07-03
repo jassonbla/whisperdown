@@ -1,10 +1,10 @@
 import SwiftUI
 
 @main
-struct VoiceToMarkdownApp: App {
-    /// 개발/검증용 외형 강제: VOICE_TO_MARKDOWN_APPEARANCE=dark|light. 미설정 시 시스템 따름.
+struct WhisperdownApp: App {
+    /// 개발/검증용 외형 강제: WHISPERDOWN_APPEARANCE=dark|light. 미설정 시 시스템 따름.
     private static var forcedScheme: ColorScheme? {
-        switch ProcessInfo.processInfo.environment["VOICE_TO_MARKDOWN_APPEARANCE"]?.lowercased() {
+        switch ProcessInfo.processInfo.environment["WHISPERDOWN_APPEARANCE"]?.lowercased() {
         case "dark": return .dark
         case "light": return .light
         default: return nil

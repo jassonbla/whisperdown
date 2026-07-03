@@ -1,4 +1,4 @@
-# Voice to Markdown
+# Whisperdown
 
 Native macOS recording app for turning Korean meeting recordings into Markdown.
 
@@ -8,7 +8,7 @@ Native macOS recording app for turning Korean meeting recordings into Markdown.
 - One-click recording with `AVFoundation`.
 - Audio is stored separately under `Recordings/`.
 - Markdown is saved in the user-visible output folder.
-- Default output folder: `~/Documents/Voice to Markdown`.
+- Default output folder: `~/Documents/Whisperdown`.
 - Current transcription MVP prefers `whisper.cpp` with Korean language selection.
 - Apple Speech is kept only as a fallback when `whisper.cpp` is not configured.
 - The next implementation step is a diarization sidecar for speaker separation.
@@ -24,7 +24,7 @@ Scripts/build-app.sh
 The app bundle is written to:
 
 ```text
-.build/Voice to Markdown.app
+.build/Whisperdown.app
 ```
 
 Swift Package Manager is also configured:
@@ -59,20 +59,20 @@ By default the script installs:
 
 - `whisper-cpp` through Homebrew
 - `ffmpeg` through Homebrew
-- `ggml-large-v3-turbo.bin` under `~/Library/Application Support/Voice to Markdown/Models/`
+- `ggml-large-v3-turbo.bin` under `~/Library/Application Support/Whisperdown/Models/`
 
 You can override paths without changing app code:
 
 ```bash
-export VOICE_TO_MARKDOWN_WHISPER_CLI=/path/to/whisper-cli
-export VOICE_TO_MARKDOWN_FFMPEG=/path/to/ffmpeg
-export VOICE_TO_MARKDOWN_WHISPER_MODEL=/path/to/ggml-large-v3-turbo.bin
+export WHISPERDOWN_WHISPER_CLI=/path/to/whisper-cli
+export WHISPERDOWN_FFMPEG=/path/to/ffmpeg
+export WHISPERDOWN_WHISPER_MODEL=/path/to/ggml-large-v3-turbo.bin
 ```
 
 The app currently runs `whisper-cli` in CPU safe mode by default because the Homebrew Metal backend can crash on some Apple Silicon/model combinations. To opt into GPU after local verification:
 
 ```bash
-export VOICE_TO_MARKDOWN_WHISPER_GPU=1
+export WHISPERDOWN_WHISPER_GPU=1
 ```
 
 ## Planned Transcription Pipeline
@@ -89,10 +89,10 @@ export VOICE_TO_MARKDOWN_WHISPER_GPU=1
 ## Storage Layout
 
 ```text
-Voice to Markdown/
+Whisperdown/
   2026-07-02_리더십 미팅_추출.md
   Recordings/
     2026-07-02_recording.m4a
-  .voice-to-markdown/
+  .whisperdown/
     index.json
 ```
