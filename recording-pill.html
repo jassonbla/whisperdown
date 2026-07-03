@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recording Pill Indicator</title>
+<style>
+  :root {
+    --ink: #1A1917;
+    --muted: #A29E96;
+    --canvas: #F7F6F4;
+    --hairline: #DDD9D2;
+    --danger: #D64545;
+    --mono: 'SF Mono','JetBrains Mono',ui-monospace,monospace;
+    --sans: 'Inter',-apple-system,'SF Pro Text',system-ui,sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* 실제 앱에선 body 배경을 transparent 로. 데모용으로만 데스크탑 가정 */
+  body {
+    font-family: var(--sans);
+    background: linear-gradient(160deg,#2A2825,#1A1917);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 20px;
+  }
+
+  @keyframes rec-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.45;transform:scale(.82)} }
+  @keyframes wv { 0%,100%{transform:scaleY(.35)} 50%{transform:scaleY(1)} }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    border-radius: 9999px;
+    padding: 7px 14px 7px 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.28);
+    cursor: default;
+    user-select: none;
+    transition: padding .18s cubic-bezier(.16,1,.3,1);
+    -webkit-app-region: drag;           /* Tauri/Electron 드래그 영역 */
+  }
+  .pill .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--danger);
+    animation: rec-pulse 1.4s ease-in-out infinite;
+    flex: none;
+  }
+  .pill .clock {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .3px;
+    min-width: 42px;
+  }
+  .pill .wave { display: flex; align-items: center; gap: 2px; height: 14px; }
+  .pill .wave i {
+    width: 2px; height: 100%;
+    background: var(--muted);
+    border-radius: 1px;
+    transform-origin: center;
+    display: block;
+    animation: wv 1s ease-in-out infinite;
+  }
+  .pill .wave i:nth-child(2){ animation-delay: .15s }
+  .pill .wave i:nth-child(3){ animation-delay: .30s }
+  .pill .wave i:nth-child(4){ animation-delay: .45s }
+
+  /* 정지 버튼: 기본 숨김, hover 시 슬라이드-인 */
+  .pill .stop {
+    width: 0; height: 22px;
+    border-radius: 50%;
+    background: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    flex: none;
+    opacity: 0;
+    overflow: hidden;
+    cursor: pointer;
+    transition: width .18s cubic-bezier(.16,1,.3,1), opacity .14s, margin .18s;
+    margin-left: -10px;
+    -webkit-app-region: no-drag;        /* 버튼은 드래그 제외 */
+  }
+  .pill:hover .stop { width: 22px; opacity: 1; margin-left: 0; }
+  .pill .stop i { width: 8px; height: 8px; border-radius: 2px; background: var(--canvas); display: block; }
+
+  /* 정지 상태 */
+  .pill.stopped .dot { animation: none; background: var(--muted); }
+  .pill.stopped .wave { display: none; }
+  .pill.stopped .clock { color: var(--muted); }
+</style>
+</head>
+<body>
+
+  <div class="pill" id="pill">
+    <span class="dot"></span>
+    <span class="clock" id="clock">00:00</span>
+    <span class="wave"><i></i><i></i><i></i><i></i></span>
+    <span class="stop" id="stop" role="button" aria-label="녹음 정지"><i></i></span>
+  </div>
+
+<script>
+  var start = Date.now();
+  var running = true;
+  var clock = document.getElementById('clock');
+  var pill = document.getElementById('pill');
+
+  function tick() {
+    if (!running) return;
+    var s = Math.floor((Date.now() - start) / 1000);
+    var m = String(Math.floor(s / 60)).padStart(2, '0');
+    var sec = String(s % 60).padStart(2, '0');
+    clock.textContent = m + ':' + sec;
+  }
+  var timer = setInterval(tick, 250);
+
+  document.getElementById('stop').addEventListener('click', function (e) {
+    e.stopPropagation();
+    running = false;
+    clearInterval(timer);
+    pill.classList.add('stopped');
+    // 실제 앱: 여기서 Tauri invoke('stop_recording') 호출 + 이 창 close
+  });
+</script>
+</body>
+</html>
