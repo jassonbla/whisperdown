@@ -3,30 +3,53 @@ import SwiftUI
 
 /// 앱 설정 (⌘,). Settings 씬은 별도 창이므로 상태는 shared 싱글턴/노티로 동기화한다.
 struct SettingsView: View {
+    @AppStorage("appLanguage") private var appLanguageRaw = AppLanguage.en.rawValue
+
+    private var language: AppLanguage {
+        AppLanguage(rawValue: appLanguageRaw) ?? .en
+    }
+
     var body: some View {
         TabView {
             GeneralSettingsView()
                 .tabItem {
-                    Label("일반", systemImage: "gearshape")
+                    Label(L10n.t("settings.tab.general", language), systemImage: "gearshape")
                 }
 
             EngineSettingsView()
                 .tabItem {
-                    Label("전사 엔진", systemImage: "waveform")
+                    Label(L10n.t("settings.tab.engine", language), systemImage: "waveform")
                 }
         }
+        .environment(\.appLanguage, language)
         .frame(width: 520)
         .background(Palette.bg1)
     }
 }
 
 private struct GeneralSettingsView: View {
+    @Environment(\.appLanguage) private var language
+    @AppStorage("appLanguage") private var appLanguageRaw = AppLanguage.en.rawValue
     @State private var markdownDirectoryPath = GeneralSettingsView.currentPath()
 
     var body: some View {
         Form {
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("Markdown 저장 폴더")
+                Text(L10n.t("settings.language", language))
+                    .font(Typography.emphasis)
+                    .foregroundStyle(Palette.label)
+
+                Picker(L10n.t("settings.language", language), selection: $appLanguageRaw) {
+                    ForEach(AppLanguage.allCases) { lang in
+                        Text(lang.displayName).tag(lang.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Text(L10n.t("settings.markdownFolder.label", language))
                     .font(Typography.emphasis)
                     .foregroundStyle(Palette.label)
 
@@ -45,12 +68,12 @@ private struct GeneralSettingsView: View {
                                 .strokeBorder(Color.hairline, lineWidth: 1)
                         }
 
-                    Button("변경…") {
+                    Button(L10n.t("settings.markdownFolder.change", language)) {
                         chooseDirectory()
                     }
                 }
 
-                Text("녹음 오디오와 전사 Markdown이 이 폴더에 저장됩니다.")
+                Text(L10n.t("settings.markdownFolder.hint", language))
                     .font(Typography.caption)
                     .foregroundStyle(Palette.tertiaryLabel)
             }
@@ -67,7 +90,7 @@ private struct GeneralSettingsView: View {
 
     private func chooseDirectory() {
         let panel = NSOpenPanel()
-        panel.title = "Markdown 저장 폴더"
+        panel.title = L10n.t("settings.markdownFolder.pickerTitle", AppLanguage.current)
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
@@ -85,6 +108,7 @@ private struct GeneralSettingsView: View {
 }
 
 private struct EngineSettingsView: View {
+    @Environment(\.appLanguage) private var language
     @ObservedObject private var manager = ModelDownloadManager.shared
     @State private var engineStatus = WhisperCppTranscriptionEngine().status()
 
@@ -95,7 +119,7 @@ private struct EngineSettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("전사 모델")
+                Text(L10n.t("engine.diagnostics.model", language))
                     .font(Typography.emphasis)
                     .foregroundStyle(Palette.label)
 

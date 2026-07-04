@@ -4,6 +4,8 @@ import SwiftUI
 /// 첫 실행/엔진 설정 온보딩. 환영 → 진단 → 모델 선택 3스텝.
 /// Settings의 "전사 엔진" 탭이 진단·모델 뷰(EngineDiagnosticsView/ModelListView)를 공용한다.
 struct OnboardingSheet: View {
+    @Environment(\.appLanguage) private var language
+
     enum Step: String, Identifiable {
         case welcome
         case diagnostics
@@ -64,7 +66,7 @@ struct OnboardingSheet: View {
                     .font(Typography.largeTitle)
                     .foregroundStyle(Palette.label)
 
-                Text("녹음부터 전사까지, 모든 처리는 이 Mac 안에서만 이루어집니다.")
+                Text(L10n.t("onboarding.welcome.subtitle", language))
                     .font(Typography.body)
                     .foregroundStyle(Palette.secondaryLabel)
                     .multilineTextAlignment(.center)
@@ -74,7 +76,7 @@ struct OnboardingSheet: View {
             Button {
                 step = .diagnostics
             } label: {
-                Text("시작하기")
+                Text(L10n.t("onboarding.welcome.start", language))
                     .font(Typography.emphasis)
                     .foregroundStyle(Palette.primaryForeground)
                     .padding(.horizontal, Spacing.xl)
@@ -92,8 +94,8 @@ struct OnboardingSheet: View {
     private var diagnostics: some View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             sheetHeader(
-                title: "전사 엔진 확인",
-                subtitle: "고품질 로컬 전사(whisper.cpp)에 필요한 구성 요소를 확인합니다."
+                title: L10n.t("onboarding.diagnostics.title", language),
+                subtitle: L10n.t("onboarding.diagnostics.subtitle", language)
             )
 
             EngineDiagnosticsView(status: engineStatus) {
@@ -102,7 +104,7 @@ struct OnboardingSheet: View {
             .padding(.horizontal, Spacing.xl)
 
             if !(engineStatus.whisperCLI.isFound && engineStatus.ffmpeg.isFound) {
-                Text("설치 전에도 Apple Speech로 임시 전사를 사용할 수 있습니다.")
+                Text(L10n.t("onboarding.diagnostics.appleSpeechNote", language))
                     .font(Typography.caption)
                     .foregroundStyle(Palette.tertiaryLabel)
                     .padding(.horizontal, Spacing.xl)
@@ -110,7 +112,7 @@ struct OnboardingSheet: View {
 
             sheetFooter {
                 if initialStep == .welcome {
-                    Button("건너뛰기") { finish() }
+                    Button(L10n.t("onboarding.diagnostics.skip", language)) { finish() }
                         .buttonStyle(.plain)
                         .font(Typography.body)
                         .foregroundStyle(Palette.secondaryLabel)
@@ -121,7 +123,7 @@ struct OnboardingSheet: View {
                 Button {
                     step = .modelPicker
                 } label: {
-                    Text("다음: 모델 선택")
+                    Text(L10n.t("onboarding.diagnostics.next", language))
                         .font(Typography.emphasis)
                         .foregroundStyle(Palette.primaryForeground)
                         .padding(.horizontal, Spacing.lg)
@@ -139,15 +141,15 @@ struct OnboardingSheet: View {
     private var modelPicker: some View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             sheetHeader(
-                title: "전사 모델 다운로드",
-                subtitle: "모델은 이 Mac에 저장되며 오프라인으로 동작합니다. 나중에 설정(⌘,)에서 변경할 수 있습니다."
+                title: L10n.t("onboarding.modelPicker.title", language),
+                subtitle: L10n.t("onboarding.modelPicker.subtitle", language)
             )
 
             ModelListView(manager: manager)
                 .padding(.horizontal, Spacing.xl)
 
             sheetFooter {
-                Button("이전") { step = .diagnostics }
+                Button(L10n.t("onboarding.modelPicker.back", language)) { step = .diagnostics }
                     .buttonStyle(.plain)
                     .font(Typography.body)
                     .foregroundStyle(Palette.secondaryLabel)
@@ -157,7 +159,7 @@ struct OnboardingSheet: View {
                 Button {
                     finish()
                 } label: {
-                    Text(manager.isAnyDownloadActive ? "백그라운드에서 계속" : "완료")
+                    Text(manager.isAnyDownloadActive ? L10n.t("onboarding.modelPicker.continueBackground", language) : L10n.t("onboarding.modelPicker.done", language))
                         .font(Typography.emphasis)
                         .foregroundStyle(Palette.primaryForeground)
                         .padding(.horizontal, Spacing.lg)
@@ -202,6 +204,8 @@ struct OnboardingSheet: View {
 // MARK: - 진단 뷰 (온보딩·Settings 공용)
 
 struct EngineDiagnosticsView: View {
+    @Environment(\.appLanguage) private var language
+
     let status: EngineStatus
     let onRefresh: () -> Void
 
@@ -216,19 +220,19 @@ struct EngineDiagnosticsView: View {
             VStack(spacing: 0) {
                 diagnosticRow(
                     title: "whisper-cli",
-                    detail: status.whisperCLI.url?.path ?? "설치되지 않음",
+                    detail: status.whisperCLI.url?.path ?? L10n.t("engine.diagnostics.notInstalled", language),
                     isFound: status.whisperCLI.isFound
                 )
                 Divider().overlay(Color.hairline)
                 diagnosticRow(
                     title: "ffmpeg",
-                    detail: status.ffmpeg.url?.path ?? "설치되지 않음",
+                    detail: status.ffmpeg.url?.path ?? L10n.t("engine.diagnostics.notInstalled", language),
                     isFound: status.ffmpeg.isFound
                 )
                 Divider().overlay(Color.hairline)
                 diagnosticRow(
-                    title: "전사 모델",
-                    detail: status.modelFileName ?? "다운로드 필요",
+                    title: L10n.t("engine.diagnostics.model", language),
+                    detail: status.modelFileName ?? L10n.t("engine.diagnostics.needsDownload", language),
                     isFound: status.model.isFound
                 )
             }
@@ -240,7 +244,7 @@ struct EngineDiagnosticsView: View {
 
             if needsBinaries {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Text("Homebrew로 필요한 도구를 설치하세요:")
+                    Text(L10n.t("engine.diagnostics.installHint", language))
                         .font(Typography.caption)
                         .foregroundStyle(Palette.secondaryLabel)
 
@@ -262,7 +266,7 @@ struct EngineDiagnosticsView: View {
                                 didCopyCommand = false
                             }
                         } label: {
-                            Label(didCopyCommand ? "복사됨" : "복사", systemImage: didCopyCommand ? "checkmark" : "doc.on.doc")
+                            Label(didCopyCommand ? L10n.t("engine.diagnostics.copied", language) : L10n.t("engine.diagnostics.copy", language), systemImage: didCopyCommand ? "checkmark" : "doc.on.doc")
                                 .font(Typography.caption)
                                 .foregroundStyle(didCopyCommand ? Palette.success : Palette.secondaryLabel)
                         }
@@ -271,7 +275,7 @@ struct EngineDiagnosticsView: View {
                         Button {
                             onRefresh()
                         } label: {
-                            Label("다시 확인", systemImage: "arrow.clockwise")
+                            Label(L10n.t("engine.diagnostics.recheck", language), systemImage: "arrow.clockwise")
                                 .font(Typography.caption)
                                 .foregroundStyle(Palette.secondaryLabel)
                         }
@@ -339,6 +343,8 @@ struct ModelListView: View {
 }
 
 private struct ModelRow: View {
+    @Environment(\.appLanguage) private var language
+
     enum Action {
         case download
         case cancel
@@ -357,7 +363,7 @@ private struct ModelRow: View {
                         .foregroundStyle(Palette.label)
 
                     if model.isRecommended {
-                        Text("추천")
+                        Text(L10n.t("model.recommended", language))
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(Palette.success)
                             .padding(.horizontal, 6)
@@ -366,7 +372,7 @@ private struct ModelRow: View {
                     }
                 }
 
-                Text("\(model.formattedSize) · \(model.detail)")
+                Text("\(model.formattedSize) · \(L10n.t(model.detailKey, language))")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.secondaryLabel)
             }
@@ -391,7 +397,7 @@ private struct ModelRow: View {
                     .foregroundStyle(Palette.secondaryLabel)
             }
             .buttonStyle(.plain)
-            .help("다운로드")
+            .help(L10n.t("model.download.help", language))
 
         case .downloading(let fraction, _, _):
             HStack(spacing: Spacing.sm) {
@@ -412,7 +418,7 @@ private struct ModelRow: View {
                         .foregroundStyle(Palette.tertiaryLabel)
                 }
                 .buttonStyle(.plain)
-                .help("취소")
+                .help(L10n.t("action.cancel", language))
             }
 
         case .failed(let message):
@@ -422,7 +428,7 @@ private struct ModelRow: View {
                     .foregroundStyle(Palette.warning)
                     .help(message)
 
-                Button("재시도") {
+                Button(L10n.t("model.retry", language)) {
                     onAction(.download)
                 }
                 .buttonStyle(.plain)
@@ -431,7 +437,7 @@ private struct ModelRow: View {
             }
 
         case .installed:
-            Label("설치됨", systemImage: "checkmark.circle.fill")
+            Label(L10n.t("model.installed", language), systemImage: "checkmark.circle.fill")
                 .font(Typography.caption)
                 .foregroundStyle(Palette.success)
         }

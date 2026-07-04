@@ -15,29 +15,30 @@ final class RecordingProcessor: ObservableObject {
         onCreated: (Recording) -> Void = { _ in }
     ) async -> Recording? {
         isProcessing = true
-        processingMessage = "전사 준비 중"
+        processingMessage = L10n.t("processor.preparing", AppLanguage.current)
         defer {
             isProcessing = false
             processingMessage = nil
         }
 
+        let transcribingLabel = L10n.t("detail.badge.transcribing", AppLanguage.current)
         var recording = Recording(
-            title: "전사 중",
+            title: transcribingLabel,
             createdAt: audio.startedAt,
             duration: audio.duration,
-            markdownURL: store.uniqueMarkdownURL(for: audio.startedAt, title: "전사 중"),
+            markdownURL: store.uniqueMarkdownURL(for: audio.startedAt, title: transcribingLabel),
             audioURL: audio.url,
             status: .processing,
-            transcript: "전사를 준비하고 있습니다.",
+            transcript: L10n.t("processor.transcribingPlaceholder", AppLanguage.current),
             segments: [],
-            engineNote: "전사 처리 중"
+            engineNote: L10n.t("processor.transcribingNote", AppLanguage.current)
         )
 
         store.add(recording)
         onCreated(recording)
 
         do {
-            processingMessage = "전사 중"
+            processingMessage = transcribingLabel
             let transcript = try await transcriptionEngine.transcribe(audio: audio)
             let title = titleExtractor.title(from: transcript.text, fallbackDate: audio.startedAt)
             let markdownURL = store.uniqueMarkdownURL(for: audio.startedAt, title: title)
@@ -54,7 +55,7 @@ final class RecordingProcessor: ObservableObject {
             store.update(recording)
             return recording
         } catch {
-            let failureTitle = "전사 실패 \(AppFormatters.fileDate.string(from: audio.startedAt))"
+            let failureTitle = String(format: L10n.t("processor.failureTitlePrefix", AppLanguage.current), AppFormatters.fileDate.string(from: audio.startedAt))
             recording.title = failureTitle
             recording.markdownURL = store.uniqueMarkdownURL(for: audio.startedAt, title: failureTitle)
             recording.status = .failed
@@ -71,18 +72,19 @@ final class RecordingProcessor: ObservableObject {
 
     func retry(recording: Recording, store: RecordingStore) async -> Recording? {
         isProcessing = true
-        processingMessage = "전사 중"
+        let transcribingLabel = L10n.t("detail.badge.transcribing", AppLanguage.current)
+        processingMessage = transcribingLabel
         defer {
             isProcessing = false
             processingMessage = nil
         }
 
         var updated = recording
-        updated.title = "전사 중"
+        updated.title = transcribingLabel
         updated.status = .processing
-        updated.transcript = "전사를 준비하고 있습니다."
+        updated.transcript = L10n.t("processor.transcribingPlaceholder", AppLanguage.current)
         updated.segments = []
-        updated.engineNote = "전사 처리 중"
+        updated.engineNote = L10n.t("processor.transcribingNote", AppLanguage.current)
         store.update(updated)
 
         let audio = RecordedAudio(
@@ -108,7 +110,7 @@ final class RecordingProcessor: ObservableObject {
             store.update(updated)
             return updated
         } catch {
-            let failureTitle = "전사 실패 \(AppFormatters.fileDate.string(from: audio.startedAt))"
+            let failureTitle = String(format: L10n.t("processor.failureTitlePrefix", AppLanguage.current), AppFormatters.fileDate.string(from: audio.startedAt))
             updated.title = failureTitle
             updated.markdownURL = store.uniqueMarkdownURL(for: audio.startedAt, title: failureTitle)
             updated.status = .failed

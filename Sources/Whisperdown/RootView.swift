@@ -8,6 +8,11 @@ struct RootView: View {
     @ObservedObject private var modelManager = ModelDownloadManager.shared
 
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("appLanguage") private var appLanguageRaw = AppLanguage.en.rawValue
+
+    private var language: AppLanguage {
+        AppLanguage(rawValue: appLanguageRaw) ?? .en
+    }
 
     @State private var selectedRecordingID: Recording.ID?
     @State private var searchText = ""
@@ -38,6 +43,7 @@ struct RootView: View {
 
     var body: some View {
         layout
+            .environment(\.appLanguage, language)
             .appWindowShell()
             .ignoresSafeArea()
             .background(Color.clear)
@@ -45,26 +51,26 @@ struct RootView: View {
             .background(floatingRecorderPresenter)
             .background(deleteShortcutButton)
             .alert(
-                "녹음 삭제",
+                L10n.t("alert.deleteRecording.title", language),
                 isPresented: deletionAlertBinding,
                 presenting: pendingDeletion
             ) { recording in
-                Button("삭제", role: .destructive) {
+                Button(L10n.t("action.delete", language), role: .destructive) {
                     confirmDeletion(recording)
                 }
-                Button("취소", role: .cancel) {}
+                Button(L10n.t("action.cancel", language), role: .cancel) {}
             } message: { recording in
-                Text("\"\(recording.title)\" 녹음과 Markdown이 휴지통으로 이동합니다.")
+                Text(String(format: L10n.t("alert.deleteRecording.message", language), recording.title))
             }
-            .alert("녹음 오류", isPresented: errorAlertBinding) {
-                Button("확인") {
+            .alert(L10n.t("alert.recordingError.title", language), isPresented: errorAlertBinding) {
+                Button(L10n.t("action.ok", language)) {
                     recorder.errorMessage = nil
                 }
             } message: {
                 Text(recorder.errorMessage ?? "")
             }
-            .alert("재생 오류", isPresented: playbackErrorAlertBinding) {
-                Button("확인") {
+            .alert(L10n.t("alert.playbackError.title", language), isPresented: playbackErrorAlertBinding) {
+                Button(L10n.t("action.ok", language)) {
                     playback.errorMessage = nil
                 }
             } message: {
@@ -161,7 +167,8 @@ struct RootView: View {
             isPresented: recorder.isRecording,
             level: recorder.level,
             elapsed: recorder.elapsed,
-            onStop: toggleRecording
+            onStop: toggleRecording,
+            language: language
         )
     }
 

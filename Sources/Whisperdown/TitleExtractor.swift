@@ -16,7 +16,7 @@ struct TitleExtractor {
             return compactTitle(first)
         }
 
-        return "새 녹음 \(AppFormatters.fileDate.string(from: fallbackDate))"
+        return String(format: L10n.t("titleExtractor.newRecordingPrefix", AppLanguage.current), AppFormatters.fileDate.string(from: fallbackDate))
     }
 
     private func compactTitle(_ text: String) -> String {
@@ -25,7 +25,7 @@ struct TitleExtractor {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !normalized.isEmpty else {
-            return "새 녹음"
+            return L10n.t("titleExtractor.newRecording", AppLanguage.current)
         }
 
         return String(normalized.prefix(28))

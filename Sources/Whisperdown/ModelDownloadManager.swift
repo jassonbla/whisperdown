@@ -130,17 +130,17 @@ enum ModelDownloadError: LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .cancelled:
-            return "다운로드가 취소되었습니다."
+            return L10n.t("error.download.cancelled", AppLanguage.current)
         case .network(let message):
-            return "네트워크 오류: \(message)"
+            return String(format: L10n.t("error.download.network", AppLanguage.current), message)
         case .tooSmall(let expected, let actual):
             let expectedText = ByteCountFormatter.string(fromByteCount: expected, countStyle: .file)
             let actualText = ByteCountFormatter.string(fromByteCount: actual, countStyle: .file)
-            return "다운로드된 파일이 불완전합니다 (예상 \(expectedText), 실제 \(actualText))."
+            return String(format: L10n.t("error.download.tooSmall", AppLanguage.current), expectedText, actualText)
         case .invalidFormat:
-            return "모델 파일 형식이 올바르지 않습니다 (ggml 매직 불일치)."
+            return L10n.t("error.download.invalidFormat", AppLanguage.current)
         case .fileSystem(let message):
-            return "파일 저장 실패: \(message)"
+            return String(format: L10n.t("error.download.fileSystem", AppLanguage.current), message)
         }
     }
 }

@@ -4,6 +4,7 @@ struct LiveRecordingWidget: View {
     let level: Double
     let elapsed: TimeInterval
     let onStop: () -> Void
+    var language: AppLanguage = .en
 
     @State private var isHovering = false
 
@@ -38,7 +39,7 @@ struct LiveRecordingWidget: View {
                 .buttonStyle(.plain)
                 .opacity(isHovering ? 1 : 0)
                 .allowsHitTesting(isHovering)
-                .help("녹음 정지")
+                .help(L10n.t("controls.recordButton.stop", language))
             }
             .frame(width: 22, height: 22)
             .animation(.easeOut(duration: 0.16), value: isHovering)
@@ -54,7 +55,7 @@ struct LiveRecordingWidget: View {
         .shadow(color: Color.black.opacity(0.35), radius: 12, x: 0, y: 8)
         .onHover { isHovering = $0 }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("녹음 중")
+        .accessibilityLabel(L10n.t("sidebar.bottomStatus.recording", language))
         .accessibilityValue(AppFormatters.duration(elapsed))
     }
 }

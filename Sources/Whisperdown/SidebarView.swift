@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SidebarView: View {
+    @Environment(\.appLanguage) private var language
+
     let recordings: [Recording]
     @Binding var selectedRecordingID: Recording.ID?
     @Binding var searchText: String
@@ -31,7 +33,7 @@ struct SidebarView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: Spacing.xs / 2) {
-                        SidebarSectionHeader(title: "최근 항목")
+                        SidebarSectionHeader(title: L10n.t("sidebar.recentItems", language))
 
                         ForEach(recordings) { recording in
                             RecordingRow(
@@ -42,7 +44,7 @@ struct SidebarView: View {
                                 selectedRecordingID = recording.id
                             }
                             .contextMenu {
-                                Button("삭제", role: .destructive) {
+                                Button(L10n.t("action.delete", language), role: .destructive) {
                                     onDeleteRequested(recording)
                                 }
                             }
@@ -73,13 +75,13 @@ struct SidebarView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("모든 녹음 항목")
+                        Text(L10n.t("sidebar.allRecordings", language))
                             .font(Typography.headline)
                             .foregroundStyle(Palette.label.opacity(0.92))
                         HStack(spacing: 0) {
                             Text("Whisperdown · ")
                                 .font(AppTypography.meta)
-                            Text("\(recordingCount)개")
+                            Text(String(format: L10n.t("sidebar.countSuffix", language), recordingCount))
                                 .font(AppTypography.meta)
                         }
                         .foregroundStyle(Palette.secondaryLabel)
@@ -123,7 +125,7 @@ struct SidebarView: View {
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(Palette.secondaryLabel)
 
-                    Text("모델 다운로드 중 \(Int(fraction * 100))%")
+                    Text(String(format: L10n.t("sidebar.modelDownloadProgress", language), Int(fraction * 100)))
                         .font(Typography.caption)
                         .monospacedDigit()
                         .foregroundStyle(Palette.secondaryLabel)
@@ -148,7 +150,7 @@ struct SidebarView: View {
                 )
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(isRecording ? "녹음 중" : "새 녹음")
+                    Text(isRecording ? L10n.t("sidebar.bottomStatus.recording", language) : L10n.t("sidebar.newRecording", language))
                         .font(Typography.emphasis)
                         .foregroundStyle(Palette.label)
                         .lineLimit(1)
@@ -198,14 +200,14 @@ struct SidebarView: View {
 
     private var bottomStatusText: String {
         if isRecording {
-            return "기록 중"
+            return L10n.t("sidebar.bottomStatus.recording", language)
         }
 
         if isProcessing {
-            return "전사 처리 중"
+            return L10n.t("sidebar.bottomStatus.transcribing", language)
         }
 
-        return "준비됨"
+        return L10n.t("sidebar.bottomStatus.ready", language)
     }
 }
 
@@ -217,6 +219,8 @@ struct SidebarSurface: View {
 }
 
 private struct SidebarLibraryRow: View {
+    @Environment(\.appLanguage) private var language
+
     let count: Int
     let isSearching: Bool
 
@@ -227,7 +231,7 @@ private struct SidebarLibraryRow: View {
                 .foregroundStyle(Palette.primary.opacity(0.78))
                 .frame(width: 20, height: 20)
 
-            Text(isSearching ? "검색 결과" : "라이브러리")
+            Text(isSearching ? L10n.t("sidebar.searching", language) : L10n.t("sidebar.library", language))
                 .font(Typography.emphasis)
                 .foregroundStyle(Palette.label.opacity(0.86))
 
@@ -263,6 +267,7 @@ private struct SidebarSectionHeader: View {
 }
 
 private struct SidebarSearchField: View {
+    @Environment(\.appLanguage) private var language
     @Binding var text: String
 
     @FocusState private var isFocused: Bool
@@ -273,7 +278,7 @@ private struct SidebarSearchField: View {
                 .font(Typography.caption)
                 .foregroundStyle(Palette.tertiaryLabel)
 
-            TextField("검색", text: $text)
+            TextField(L10n.t("sidebar.search.placeholder", language), text: $text)
                 .textFieldStyle(.plain)
                 .font(Typography.body)
                 .foregroundStyle(Palette.label)
@@ -304,6 +309,8 @@ private struct SidebarSearchField: View {
 }
 
 private struct RecordingRow: View {
+    @Environment(\.appLanguage) private var language
+
     let recording: Recording
     let isSelected: Bool
     let isActivelyProcessing: Bool
@@ -375,13 +382,13 @@ private struct RecordingRow: View {
         switch recording.status {
         case .processing:
             if isActivelyProcessing {
-                Text("전사 중")
+                Text(L10n.t("sidebar.bottomStatus.transcribing", language))
                     .foregroundStyle(Palette.secondaryLabel)
             } else {
                 HStack(spacing: 3) {
                     Image(systemName: "exclamationmark.circle.fill")
                         .font(.system(size: 9, weight: .semibold))
-                    Text("재시도 필요")
+                    Text(L10n.t("detail.badge.retryNeeded", language))
                 }
                 .foregroundStyle(Palette.warning.opacity(0.82))
             }
@@ -389,7 +396,7 @@ private struct RecordingRow: View {
             HStack(spacing: 3) {
                 Image(systemName: "exclamationmark.circle.fill")
                     .font(.system(size: 9, weight: .semibold))
-                Text("확인 필요")
+                Text(L10n.t("sidebar.row.reviewNeeded", language))
             }
             .foregroundStyle(Palette.warning.opacity(0.82))
         case .ready:
@@ -487,6 +494,8 @@ private struct RecordingRow: View {
 }
 
 private struct EmptyRecordingsView: View {
+    @Environment(\.appLanguage) private var language
+
     let isSearching: Bool
 
     var body: some View {
@@ -495,7 +504,7 @@ private struct EmptyRecordingsView: View {
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundStyle(Palette.tertiaryLabel)
 
-            Text(isSearching ? "검색 결과 없음" : "녹음 없음")
+            Text(isSearching ? L10n.t("sidebar.empty.noResults", language) : L10n.t("sidebar.empty.noRecordings", language))
                 .font(Typography.emphasis)
                 .foregroundStyle(Palette.secondaryLabel)
 
@@ -508,7 +517,7 @@ private struct EmptyRecordingsView: View {
                         .frame(height: 18)
                         .background(Palette.bg2, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
 
-                    Text("으로 첫 녹음을 시작하세요")
+                    Text(L10n.t("sidebar.empty.startHint", language))
                         .font(Typography.caption)
                         .foregroundStyle(Palette.tertiaryLabel)
                 }

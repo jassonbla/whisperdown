@@ -7,6 +7,7 @@ struct FloatingRecorderPanelPresenter: NSViewRepresentable {
     let level: Double
     let elapsed: TimeInterval
     let onStop: () -> Void
+    var language: AppLanguage = .en
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -24,6 +25,7 @@ struct FloatingRecorderPanelPresenter: NSViewRepresentable {
             level: level,
             elapsed: elapsed,
             onStop: onStop,
+            language: language,
             hostWindow: nsView.window
         )
     }
@@ -47,6 +49,7 @@ struct FloatingRecorderPanelPresenter: NSViewRepresentable {
             level: Double,
             elapsed: TimeInterval,
             onStop: @escaping () -> Void,
+            language: AppLanguage,
             hostWindow: NSWindow?
         ) {
             lastHostWindow = hostWindow ?? lastHostWindow
@@ -56,7 +59,7 @@ struct FloatingRecorderPanelPresenter: NSViewRepresentable {
                 return
             }
 
-            let widget = LiveRecordingWidget(level: level, elapsed: elapsed, onStop: onStop)
+            let widget = LiveRecordingWidget(level: level, elapsed: elapsed, onStop: onStop, language: language)
 
             if let hostingView {
                 hostingView.rootView = widget
