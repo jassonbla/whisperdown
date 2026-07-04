@@ -227,13 +227,15 @@ struct DetailView: View {
         liveTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// 전사 결과가 나타날 자리(좌상단)에 스테퍼를 배치해 진행 → 결과의 공간적 연속성을 유지한다.
     private var processingView: some View {
-        VStack(spacing: Spacing.lg) {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
             TranscriptionStageListView(
                 currentStage: processingStage,
                 transcriptionProgress: transcriptionProgress,
                 transcriptionStartedAt: transcriptionStartedAt,
-                transcriptionActivity: transcriptionActivity
+                transcriptionActivity: transcriptionActivity,
+                showsActivitySteps: isWhisperReady
             )
 
             if let partialTranscript,
@@ -241,7 +243,8 @@ struct DetailView: View {
                 PartialTranscriptPreview(text: partialTranscript)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 240, alignment: .center)
+        .padding(.top, Spacing.xs)
+        .frame(maxWidth: .infinity, minHeight: 240, alignment: .topLeading)
     }
 
     private func retryButton(for recording: Recording) -> some View {
@@ -538,148 +541,172 @@ private struct TranscriptionStageListView: View {
     let transcriptionProgress: Double?
     let transcriptionStartedAt: Date?
     let transcriptionActivity: TranscriptionActivity?
+    let showsActivitySteps: Bool
 
     private enum RowStatus {
         case done, active, pending
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            ForEach(TranscriptionStage.allCases, id: \.self) { stage in
-                stageRow(for: stage)
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(steps, id: \.self) { step in
+                stepRow(for: step)
             }
         }
         .frame(maxWidth: 280, alignment: .leading)
     }
 
-    private func status(for stage: TranscriptionStage) -> RowStatus {
-        guard let currentStage else { return .pending }
-        if stage.rawValue < currentStage.rawValue { return .done }
-        if stage.rawValue == currentStage.rawValue { return .active }
-        return .pending
+    /// 파이프라인은 순차 실행이므로 계층 없이 1-depth 평면 리스트로 보여준다.
+    /// whisper 경로는 준비 단계 2개를 포함한 5행, Apple Speech는 신호가 없어 3행.
+    private enum FlatStep: Hashable {
+        case stage(TranscriptionStage)
+        case activity(TranscriptionActivity)
     }
 
-    private func keyPrefix(for stage: TranscriptionStage) -> String {
-        switch stage {
-        case .converting: return "stage.converting"
-        case .transcribing: return "stage.transcribing"
-        case .finalizing: return "stage.finalizing"
+    private var steps: [FlatStep] {
+        if showsActivitySteps {
+            return [
+                .stage(.converting),
+                .activity(.loadingModel),
+                .activity(.analyzing),
+                .stage(.transcribing),
+                .stage(.finalizing)
+            ]
         }
+        return TranscriptionStage.allCases.map { FlatStep.stage($0) }
     }
 
-    private func activityKey(for activity: TranscriptionActivity) -> String {
-        switch activity {
-        case .loadingModel: return "stage.transcribing.loadingModel"
-        case .analyzing: return "stage.transcribing.analyzing"
-        }
-    }
+    private var currentStepIndex: Int {
+        guard let currentStage else { return -1 }
 
-    /// 인식(%)이 시작됐으면 두 준비 단계는 모두 완료로 본다.
-    private func activityStatus(for activity: TranscriptionActivity) -> RowStatus {
-        if transcriptionProgress != nil {
-            return .done
-        }
-        guard let transcriptionActivity else {
-            return .pending
-        }
-        if activity.rawValue < transcriptionActivity.rawValue { return .done }
-        if activity.rawValue == transcriptionActivity.rawValue { return .active }
-        return .pending
-    }
-
-    @ViewBuilder
-    private func activityRow(for activity: TranscriptionActivity) -> some View {
-        let rowStatus = activityStatus(for: activity)
-
-        HStack(spacing: Spacing.xs) {
-            Group {
-                switch rowStatus {
-                case .done:
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.success.opacity(0.75))
-                case .active:
-                    CircularProcessingIndicator()
-                case .pending:
-                    Image(systemName: "circle")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.tertiaryLabel)
-                }
+        let currentStep: FlatStep
+        switch currentStage {
+        case .converting:
+            currentStep = .stage(.converting)
+        case .transcribing:
+            if !showsActivitySteps || transcriptionProgress != nil {
+                currentStep = .stage(.transcribing)
+            } else {
+                currentStep = .activity(transcriptionActivity ?? .loadingModel)
             }
-            .frame(width: 12, height: 12)
+        case .finalizing:
+            currentStep = .stage(.finalizing)
+        }
 
-            switch rowStatus {
-            case .done:
-                Text(L10n.t("\(activityKey(for: activity)).done", language))
-                    .font(Typography.caption)
+        return steps.firstIndex(of: currentStep) ?? -1
+    }
+
+    private func status(for step: FlatStep) -> RowStatus {
+        guard let index = steps.firstIndex(of: step) else { return .pending }
+        let current = currentStepIndex
+        if index < current { return .done }
+        if index == current { return .active }
+        return .pending
+    }
+
+    private func key(for step: FlatStep) -> String {
+        switch step {
+        case .stage(.converting): return "stage.converting"
+        case .stage(.transcribing): return "stage.transcribing"
+        case .stage(.finalizing): return "stage.finalizing"
+        case .activity(.loadingModel): return "stage.transcribing.loadingModel"
+        case .activity(.analyzing): return "stage.transcribing.analyzing"
+        }
+    }
+
+    private func activeLabel(for step: FlatStep) -> String {
+        switch step {
+        case .stage: return L10n.t("\(key(for: step)).active", language)
+        case .activity: return L10n.t(key(for: step), language)
+        }
+    }
+
+    private func doneLabel(for step: FlatStep) -> String {
+        L10n.t("\(key(for: step)).done", language)
+    }
+
+    private func isLastStep(_ step: FlatStep) -> Bool {
+        steps.last == step
+    }
+
+    /// 스텝 아이콘. 총 단계 수는 pending 숫자 원이 구조로 보여준다 —
+    /// 카운터 텍스트를 반복하는 대신 배송 추적/설치 마법사 계열의 스테퍼 관용구를 따른다.
+    @ViewBuilder
+    private func stepIcon(for step: FlatStep, status rowStatus: RowStatus) -> some View {
+        switch rowStatus {
+        case .done:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Palette.success)
+        case .active:
+            // 진행률을 알면 indeterminate 스피너 대신 determinate 링으로 채운다.
+            if step == .stage(.transcribing), let transcriptionProgress {
+                DeterminateProgressRing(fraction: transcriptionProgress)
+            } else {
+                CircularProcessingIndicator()
+            }
+        case .pending:
+            ZStack {
+                Circle()
+                    .stroke(Palette.tertiaryLabel.opacity(0.55), lineWidth: 1)
+                Text("\((steps.firstIndex(of: step) ?? 0) + 1)")
+                    .font(.system(size: 9, weight: .medium))
+                    .monospacedDigit()
                     .foregroundStyle(Palette.tertiaryLabel)
-            case .active:
-                Text(L10n.t(activityKey(for: activity), language))
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.secondaryLabel)
-            case .pending:
-                Text(L10n.t(activityKey(for: activity), language))
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.tertiaryLabel.opacity(0.7))
             }
         }
     }
 
     @ViewBuilder
-    private func stageRow(for stage: TranscriptionStage) -> some View {
-        let rowStatus = status(for: stage)
-        let prefix = keyPrefix(for: stage)
+    private func stepRow(for step: FlatStep) -> some View {
+        let rowStatus = status(for: step)
+        let isLast = isLastStep(step)
 
-        HStack(spacing: Spacing.sm) {
+        HStack(alignment: .top, spacing: Spacing.sm) {
+            VStack(spacing: 3) {
+                stepIcon(for: step, status: rowStatus)
+                    .frame(width: 16, height: 16)
+
+                if !isLast {
+                    // 지나온 구간의 레일은 은은하게 물들여 "하나의 프로세스"로 읽히게 한다.
+                    Rectangle()
+                        .fill(rowStatus == .done ? Palette.success.opacity(0.30) : Color.hairline)
+                        .frame(width: 1)
+                        .frame(maxHeight: .infinity)
+                        .padding(.bottom, 3)
+                }
+            }
+            .frame(width: 16)
+
             Group {
                 switch rowStatus {
                 case .done:
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Palette.success)
+                    Text(doneLabel(for: step))
+                        .font(Typography.body)
+                        .foregroundStyle(Palette.secondaryLabel)
                 case .active:
-                    CircularProcessingIndicator()
-                case .pending:
-                    Image(systemName: "circle")
-                        .foregroundStyle(Palette.tertiaryLabel)
-                }
-            }
-            .frame(width: 16, height: 16)
-
-            switch rowStatus {
-            case .done:
-                Text(L10n.t("\(prefix).done", language))
-                    .font(Typography.body)
-                    .foregroundStyle(Palette.secondaryLabel)
-            case .active:
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 0) {
-                        Text(L10n.t("\(prefix).active", language))
-                        AnimatedDots()
-                    }
-                    .font(Typography.emphasis)
-                    .foregroundStyle(Palette.label.opacity(0.9))
-
-                    // 서브 단계는 완료 후에도 숨기지 않고 체크 표시로 유지 —
-                    // 전사 프로세스 전체가 한눈에 읽히도록 한다. (whisper 경로에서만 신호 발생)
-                    if stage == .transcribing,
-                       transcriptionActivity != nil || transcriptionProgress != nil {
-                        ForEach(TranscriptionActivity.allCases, id: \.self) { activity in
-                            activityRow(for: activity)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 0) {
+                            Text(activeLabel(for: step))
+                            AnimatedDots()
                         }
+                        .font(Typography.emphasis)
+                        .foregroundStyle(Palette.label.opacity(0.9))
 
-                        if let transcriptionProgress {
+                        if step == .stage(.transcribing), let transcriptionProgress {
                             TranscriptionProgressCaption(
                                 progress: transcriptionProgress,
                                 startedAt: transcriptionStartedAt
                             )
                         }
                     }
+                case .pending:
+                    Text(activeLabel(for: step))
+                        .font(Typography.body)
+                        .foregroundStyle(Palette.tertiaryLabel)
                 }
-            case .pending:
-                Text(L10n.t("\(prefix).active", language))
-                    .font(Typography.body)
-                    .foregroundStyle(Palette.tertiaryLabel)
             }
+            .padding(.bottom, isLast ? 0 : Spacing.md)
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -723,6 +750,23 @@ private struct PartialTranscriptPreview: View {
                 .strokeBorder(Color.hairline, lineWidth: 1)
         }
         .frame(maxWidth: 280, alignment: .leading)
+    }
+}
+
+/// 진행률을 아는 활성 스텝용 determinate 링. 채워지는 색이 완료 체크마크(success)를 예고한다.
+private struct DeterminateProgressRing: View {
+    let fraction: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Palette.tertiaryLabel.opacity(0.35), lineWidth: 1.4)
+            Circle()
+                .trim(from: 0, to: max(0, min(1, fraction)))
+                .stroke(Palette.success, style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(MotionToken.quick, value: fraction)
+        }
     }
 }
 
