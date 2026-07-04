@@ -20,7 +20,9 @@ struct WhisperCppTranscriptionEngine: Sendable {
     func transcribe(
         audio: RecordedAudio,
         onStageChange: @MainActor @Sendable (TranscriptionStage) -> Void = { _ in },
-        onProgress: @escaping @MainActor @Sendable (Double) -> Void = { _ in }
+        onProgress: @escaping @MainActor @Sendable (Double) -> Void = { _ in },
+        onActivity: @escaping @MainActor @Sendable (TranscriptionActivity) -> Void = { _ in },
+        onPartialText: @escaping @MainActor @Sendable (String) -> Void = { _ in }
     ) async throws -> TranscriptResult {
         guard let executableURL else {
             throw WhisperCppError.executableMissing
@@ -70,7 +72,6 @@ struct WhisperCppTranscriptionEngine: Sendable {
             "-ojf",
             "-of", outputBaseURL.path,
             "-nt",
-            "-np",
             "-pp"
         ]
 
@@ -79,13 +80,22 @@ struct WhisperCppTranscriptionEngine: Sendable {
         }
 
         await onStageChange(.transcribing)
+        await onActivity(.loadingModel)
 
-        try await run(executableURL: executableURL, arguments: whisperArguments) { line in
-            guard let fraction = Self.parseProgressFraction(from: line) else {
-                return
-            }
-            Task { await onProgress(fraction) }
-        }
+        try await run(
+            executableURL: executableURL,
+            arguments: whisperArguments,
+            onStderrLine: { line in
+                if line.hasPrefix("main: processing") {
+                    Task { await onActivity(.analyzing) }
+                    return
+                }
+                if let fraction = Self.parseProgressFraction(from: line) {
+                    Task { await onProgress(fraction) }
+                }
+            },
+            onStdoutText: onPartialText
+        )
 
         await onStageChange(.finalizing)
 
@@ -204,7 +214,8 @@ struct WhisperCppTranscriptionEngine: Sendable {
     private func run(
         executableURL: URL,
         arguments: [String],
-        onStderrLine: @escaping @Sendable (String) -> Void = { _ in }
+        onStderrLine: @escaping @Sendable (String) -> Void = { _ in },
+        onStdoutText: (@MainActor @Sendable (String) -> Void)? = nil
     ) async throws {
         let process = Process()
         let outputPipe = Pipe()
@@ -243,13 +254,36 @@ struct WhisperCppTranscriptionEngine: Sendable {
             } catch {}
             return captured
         }
+        // stdout은 -np 제거 후 세그먼트 텍스트가 개행 없이 실시간 burst로 도착하므로
+        // 라인 단위가 아닌 chunk 단위로 읽는다. readabilityHandler가 burst당 1회 호출돼
+        // MainActor 홉이 자연스럽게 코얼레싱되고, 순차 await가 청크 순서를 보장한다.
+        let stdoutHandle = outputPipe.fileHandleForReading
+        let stdoutChunks = AsyncStream<Data> { continuation in
+            stdoutHandle.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    handle.readabilityHandler = nil
+                    continuation.finish()
+                } else {
+                    continuation.yield(data)
+                }
+            }
+        }
         let stdoutTask = Task<String, Never> {
             var captured = ""
-            do {
-                for try await line in outputPipe.fileHandleForReading.bytes.lines {
-                    captured += line + "\n"
+            var pending = Data()
+            for await chunk in stdoutChunks {
+                pending.append(chunk)
+                let text = Self.consumeCompleteUTF8(&pending)
+                guard !text.isEmpty else { continue }
+                captured += text
+                if let onStdoutText {
+                    await onStdoutText(text)
                 }
-            } catch {}
+            }
+            if !pending.isEmpty {
+                captured += String(decoding: pending, as: UTF8.self)
+            }
             return captured
         }
 
@@ -267,6 +301,40 @@ struct WhisperCppTranscriptionEngine: Sendable {
                 output + errorOutput
             )
         }
+    }
+
+    /// pending에서 완결된 UTF-8 프리픽스만 디코드해 반환하고,
+    /// 잘린 멀티바이트 꼬리(최대 3바이트)는 pending에 남긴다.
+    static func consumeCompleteUTF8(_ pending: inout Data) -> String {
+        guard !pending.isEmpty else {
+            return ""
+        }
+
+        var holdback = 0
+        let tail = [UInt8](pending.suffix(4))
+        for (offset, byte) in tail.enumerated().reversed() {
+            if byte & 0b1100_0000 == 0b1000_0000 {
+                continue
+            }
+            let expected: Int
+            switch byte {
+            case 0x00..<0x80: expected = 1
+            case 0xC0..<0xE0: expected = 2
+            case 0xE0..<0xF0: expected = 3
+            case 0xF0..<0xF8: expected = 4
+            default:          expected = 1
+            }
+            let available = tail.count - offset
+            if available < expected {
+                holdback = available
+            }
+            break
+        }
+
+        let complete = pending.prefix(pending.count - holdback)
+        let text = String(decoding: complete, as: UTF8.self)
+        pending = Data(pending.suffix(holdback))
+        return text
     }
 
     /// "whisper_print_progress_callback: progress =  42%" → 0.42

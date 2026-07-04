@@ -147,6 +147,8 @@ struct RootView: View {
             processingStage: processor.processingStage,
             transcriptionProgress: processor.transcriptionProgress,
             transcriptionStartedAt: processor.transcriptionStartedAt,
+            transcriptionActivity: processor.transcriptionActivity,
+            partialTranscript: processor.partialTranscript,
             isWhisperReady: isWhisperReady,
             elapsed: recorder.elapsed,
             level: recorder.level,

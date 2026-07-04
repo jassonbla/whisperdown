@@ -204,6 +204,11 @@ enum L10n {
         "stage.finalizing.done": [.en: "Finalized", .ko: "검증 완료"],
         "stage.transcribing.percent": [.en: "%d%%", .ko: "%d%%"],
         "stage.transcribing.eta": [.en: "about %@ left", .ko: "약 %@ 남음"],
+        "stage.transcribing.loadingModel": [.en: "Loading model", .ko: "모델 로딩 중"],
+        "stage.transcribing.analyzing": [.en: "Analyzing audio", .ko: "오디오 분석 중"],
+        "stage.transcribing.loadingModel.done": [.en: "Model loaded", .ko: "모델 로딩 완료"],
+        "stage.transcribing.analyzing.done": [.en: "Audio analyzed", .ko: "오디오 분석 완료"],
+        "detail.partialTranscript.title": [.en: "Preview", .ko: "전사 미리보기"],
 
         // MARK: RecordingStore migration notes
         "store.migration.interrupted": [
