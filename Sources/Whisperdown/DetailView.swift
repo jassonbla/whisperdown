@@ -6,6 +6,9 @@ struct DetailView: View {
     let recording: Recording?
     let isRecording: Bool
     let isProcessing: Bool
+    let processingStage: TranscriptionStage?
+    let transcriptionProgress: Double?
+    let transcriptionStartedAt: Date?
     let isWhisperReady: Bool
     let elapsed: TimeInterval
     let level: Double
@@ -169,7 +172,11 @@ struct DetailView: View {
             switch recording.status {
             case .processing:
                 if isProcessing {
-                    TranscriptionStatusView()
+                    TranscriptionStageListView(
+                currentStage: processingStage,
+                transcriptionProgress: transcriptionProgress,
+                transcriptionStartedAt: transcriptionStartedAt
+            )
                 } else {
                     VStack(spacing: Spacing.md) {
                         CenterStatusView(
@@ -207,7 +214,11 @@ struct DetailView: View {
                 .padding(.top, Spacing.xs)
             }
         } else if isProcessing {
-            TranscriptionStatusView()
+            TranscriptionStageListView(
+                currentStage: processingStage,
+                transcriptionProgress: transcriptionProgress,
+                transcriptionStartedAt: transcriptionStartedAt
+            )
         } else {
             CenterStatusView(
                 systemName: "waveform.circle",
@@ -510,40 +521,141 @@ private struct TransportIconButton: View {
     }
 }
 
-private struct TranscriptionStatusView: View {
+private struct TranscriptionStageListView: View {
     @Environment(\.appLanguage) private var language
+    let currentStage: TranscriptionStage?
+    let transcriptionProgress: Double?
+    let transcriptionStartedAt: Date?
+
+    private enum RowStatus {
+        case done, active, pending
+    }
 
     var body: some View {
-        VStack(spacing: Spacing.md) {
-            VStack(spacing: Spacing.xs) {
-                AnimatedEllipsisText(baseText: L10n.t("sidebar.bottomStatus.transcribing", language))
-
-                Text(L10n.t("detail.transcribing.message", language))
-                    .font(Typography.body)
-                    .foregroundStyle(Palette.secondaryLabel)
-                    .multilineTextAlignment(.center)
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            ForEach(TranscriptionStage.allCases, id: \.self) { stage in
+                stageRow(for: stage)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 240)
+        .frame(maxWidth: 280, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 240, alignment: .center)
+    }
+
+    private func status(for stage: TranscriptionStage) -> RowStatus {
+        guard let currentStage else { return .pending }
+        if stage.rawValue < currentStage.rawValue { return .done }
+        if stage.rawValue == currentStage.rawValue { return .active }
+        return .pending
+    }
+
+    private func keyPrefix(for stage: TranscriptionStage) -> String {
+        switch stage {
+        case .converting: return "stage.converting"
+        case .transcribing: return "stage.transcribing"
+        case .finalizing: return "stage.finalizing"
+        }
+    }
+
+    @ViewBuilder
+    private func stageRow(for stage: TranscriptionStage) -> some View {
+        let rowStatus = status(for: stage)
+        let prefix = keyPrefix(for: stage)
+
+        HStack(spacing: Spacing.sm) {
+            Group {
+                switch rowStatus {
+                case .done:
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Palette.success)
+                case .active:
+                    CircularProcessingIndicator()
+                case .pending:
+                    Image(systemName: "circle")
+                        .foregroundStyle(Palette.tertiaryLabel)
+                }
+            }
+            .frame(width: 16, height: 16)
+
+            switch rowStatus {
+            case .done:
+                Text(L10n.t("\(prefix).done", language))
+                    .font(Typography.body)
+                    .foregroundStyle(Palette.secondaryLabel)
+            case .active:
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 0) {
+                        Text(L10n.t("\(prefix).active", language))
+                        AnimatedDots()
+                    }
+                    .font(Typography.emphasis)
+                    .foregroundStyle(Palette.label.opacity(0.9))
+
+                    if stage == .transcribing, let transcriptionProgress {
+                        TranscriptionProgressCaption(
+                            progress: transcriptionProgress,
+                            startedAt: transcriptionStartedAt
+                        )
+                    }
+                }
+            case .pending:
+                Text(L10n.t("\(prefix).active", language))
+                    .font(Typography.body)
+                    .foregroundStyle(Palette.tertiaryLabel)
+            }
+        }
     }
 }
 
-private struct AnimatedEllipsisText: View {
-    let baseText: String
-
+private struct AnimatedDots: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.45)) { timeline in
             let phase = Int(timeline.date.timeIntervalSinceReferenceDate / 0.45) % 3
 
-            HStack(spacing: 0) {
-                Text(baseText)
-                Text(String(repeating: ".", count: phase + 1))
-                    .frame(width: 18, alignment: .leading)
-            }
-                .font(Typography.headline)
-                .foregroundStyle(Palette.label.opacity(0.86))
-                .frame(width: 86, alignment: .center)
+            Text(String(repeating: ".", count: phase + 1))
+                .frame(width: 18, alignment: .leading)
         }
+    }
+}
+
+private struct TranscriptionProgressCaption: View {
+    @Environment(\.appLanguage) private var language
+    let progress: Double        // 0...1
+    let startedAt: Date?
+
+    /// 이 진행률 미만에서는 ETA가 널뛰므로 %만 표시한다.
+    private static let etaThreshold = 0.05
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            Text(caption(now: timeline.date))
+                .font(Typography.caption)
+                .monospacedDigit()
+                .foregroundStyle(Palette.tertiaryLabel)
+        }
+    }
+
+    private func caption(now: Date) -> String {
+        let percentText = String(
+            format: L10n.t("stage.transcribing.percent", language),
+            Int((progress * 100).rounded())
+        )
+
+        guard progress >= Self.etaThreshold,
+              progress < 1,
+              let startedAt else {
+            return percentText
+        }
+
+        let elapsed = now.timeIntervalSince(startedAt)
+        guard elapsed > 1 else {
+            return percentText
+        }
+
+        let remaining = elapsed * (1 - progress) / progress
+        return percentText + " · " + String(
+            format: L10n.t("stage.transcribing.eta", language),
+            AppFormatters.duration(remaining)
+        )
     }
 }
 

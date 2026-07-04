@@ -8,7 +8,12 @@ struct AppleSpeechTranscriptionEngine: Sendable {
         let lastSegmentEnd: TimeInterval?
     }
 
-    func transcribe(audio: RecordedAudio) async throws -> TranscriptResult {
+    func transcribe(
+        audio: RecordedAudio,
+        onStageChange: @MainActor @Sendable (TranscriptionStage) -> Void = { _ in }
+    ) async throws -> TranscriptResult {
+        await onStageChange(.converting)
+
         let authorizationStatus = await requestSpeechAuthorization()
         guard authorizationStatus == .authorized else {
             throw AppleSpeechTranscriptionError.speechRecognitionNotAuthorized
@@ -22,11 +27,15 @@ struct AppleSpeechTranscriptionEngine: Sendable {
             throw AppleSpeechTranscriptionError.recognizerUnavailable
         }
 
+        await onStageChange(.transcribing)
+
         let transcription = try await recognize(audioURL: audio.url, recognizer: recognizer)
         let text = transcription.formattedString.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
             throw AppleSpeechTranscriptionError.emptyTranscript
         }
+
+        await onStageChange(.finalizing)
 
         let segmentEnd = max(audio.duration, transcription.lastSegmentEnd ?? audio.duration)
 

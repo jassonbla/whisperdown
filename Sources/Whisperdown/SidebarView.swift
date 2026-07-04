@@ -526,7 +526,7 @@ private struct EmptyRecordingsView: View {
     }
 }
 
-private struct CircularProcessingIndicator: View {
+struct CircularProcessingIndicator: View {
     @State private var rotation: Double = 0
 
     var body: some View {
