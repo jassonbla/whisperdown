@@ -9,7 +9,8 @@ struct TranscriptionEngine: Sendable {
         onStageChange: @MainActor @Sendable (TranscriptionStage) -> Void = { _ in },
         onProgress: @escaping @MainActor @Sendable (Double) -> Void = { _ in },
         onActivity: @escaping @MainActor @Sendable (TranscriptionActivity) -> Void = { _ in },
-        onPartialText: @escaping @MainActor @Sendable (String) -> Void = { _ in }
+        onPartialText: @escaping @MainActor @Sendable (String) -> Void = { _ in },
+        onDiarization: @escaping @MainActor @Sendable (DiarizationStepState) -> Void = { _ in }
     ) async throws -> TranscriptResult {
         if whisper.isConfigured {
             return try await whisper.transcribe(
@@ -17,7 +18,8 @@ struct TranscriptionEngine: Sendable {
                 onStageChange: onStageChange,
                 onProgress: onProgress,
                 onActivity: onActivity,
-                onPartialText: onPartialText
+                onPartialText: onPartialText,
+                onDiarization: onDiarization
             )
         }
 

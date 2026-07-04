@@ -8,6 +8,7 @@ final class RecordingProcessor: ObservableObject {
     @Published private(set) var transcriptionStartedAt: Date?
     @Published private(set) var transcriptionActivity: TranscriptionActivity?
     @Published private(set) var partialTranscript: String?
+    @Published private(set) var diarizationState: DiarizationStepState?
 
     private let transcriptionEngine = TranscriptionEngine()
     private let titleExtractor = TitleExtractor()
@@ -26,6 +27,7 @@ final class RecordingProcessor: ObservableObject {
             transcriptionStartedAt = nil
             transcriptionActivity = nil
             partialTranscript = nil
+            diarizationState = nil
         }
 
         let transcribingLabel = L10n.t("detail.badge.transcribing", AppLanguage.current)
@@ -70,6 +72,13 @@ final class RecordingProcessor: ObservableObject {
                 onPartialText: { [weak self] text in
                     guard let self else { return }
                     partialTranscript = (partialTranscript ?? "") + text
+                },
+                onDiarization: { [weak self] state in
+                    guard let self else { return }
+                    // 터미널 상태(.done/.skipped) 도달 후에는 늦은 홉이 되돌리지 못한다
+                    if diarizationState?.isTerminal != true {
+                        diarizationState = state
+                    }
                 }
             )
             let title = titleExtractor.title(from: transcript.text, fallbackDate: audio.startedAt)
@@ -112,6 +121,7 @@ final class RecordingProcessor: ObservableObject {
             transcriptionStartedAt = nil
             transcriptionActivity = nil
             partialTranscript = nil
+            diarizationState = nil
         }
 
         var updated = recording
@@ -154,6 +164,13 @@ final class RecordingProcessor: ObservableObject {
                 onPartialText: { [weak self] text in
                     guard let self else { return }
                     partialTranscript = (partialTranscript ?? "") + text
+                },
+                onDiarization: { [weak self] state in
+                    guard let self else { return }
+                    // 터미널 상태(.done/.skipped) 도달 후에는 늦은 홉이 되돌리지 못한다
+                    if diarizationState?.isTerminal != true {
+                        diarizationState = state
+                    }
                 }
             )
             let title = titleExtractor.title(from: transcript.text, fallbackDate: audio.startedAt)

@@ -11,6 +11,8 @@ struct DetailView: View {
     let transcriptionStartedAt: Date?
     let transcriptionActivity: TranscriptionActivity?
     let partialTranscript: String?
+    let diarizationState: DiarizationStepState?
+    let showsDiarizationStep: Bool
     let isWhisperReady: Bool
     let elapsed: TimeInterval
     let level: Double
@@ -63,6 +65,12 @@ struct DetailView: View {
             Spacer()
 
             HStack(spacing: Spacing.xs) {
+                if let recording, recording.status == .ready, !isRecording, !isProcessing {
+                    IconButton(systemName: "arrow.clockwise") {
+                        onRetryTranscription(recording)
+                    }
+                    .help(L10n.t("detail.help.retryTranscription", language))
+                }
                 IconButton(systemName: "folder", action: onOpenFolder)
                     .help(L10n.t("detail.help.openMarkdownFolder", language))
                 IconButton(systemName: "gearshape", action: onChooseFolder)
@@ -235,7 +243,9 @@ struct DetailView: View {
                 transcriptionProgress: transcriptionProgress,
                 transcriptionStartedAt: transcriptionStartedAt,
                 transcriptionActivity: transcriptionActivity,
-                showsActivitySteps: isWhisperReady
+                diarizationState: diarizationState,
+                showsActivitySteps: isWhisperReady,
+                showsDiarizationStep: showsDiarizationStep
             )
 
             if let partialTranscript,
@@ -541,7 +551,9 @@ private struct TranscriptionStageListView: View {
     let transcriptionProgress: Double?
     let transcriptionStartedAt: Date?
     let transcriptionActivity: TranscriptionActivity?
+    let diarizationState: DiarizationStepState?
     let showsActivitySteps: Bool
+    let showsDiarizationStep: Bool
 
     private enum RowStatus {
         case done, active, pending
@@ -561,17 +573,23 @@ private struct TranscriptionStageListView: View {
     private enum FlatStep: Hashable {
         case stage(TranscriptionStage)
         case activity(TranscriptionActivity)
+        case diarizing
     }
 
     private var steps: [FlatStep] {
         if showsActivitySteps {
-            return [
+            var flat: [FlatStep] = [
                 .stage(.converting),
                 .activity(.loadingModel),
                 .activity(.analyzing),
                 .stage(.transcribing),
                 .stage(.finalizing)
             ]
+            if showsDiarizationStep {
+                // whisper와 병렬 실행되는 스텝 — 인식 직전 슬롯에 배치
+                flat.insert(.diarizing, at: 3)
+            }
+            return flat
         }
         return TranscriptionStage.allCases.map { FlatStep.stage($0) }
     }
@@ -597,6 +615,17 @@ private struct TranscriptionStageListView: View {
     }
 
     private func status(for step: FlatStep) -> RowStatus {
+        // 화자 분석은 whisper와 병렬 실행되므로 선형 인덱스를 무시하는 유일한 오버라이드.
+        // 엔진이 .finalizing 발화 전에 터미널 상태를 해소하므로
+        // active finalizing 위에 active/pending 행이 남는 상황은 구조적으로 불가능하다.
+        if step == .diarizing {
+            switch diarizationState {
+            case nil: return .pending
+            case .running: return .active
+            case .done, .skipped: return .done
+            }
+        }
+
         guard let index = steps.firstIndex(of: step) else { return .pending }
         let current = currentStepIndex
         if index < current { return .done }
@@ -611,6 +640,7 @@ private struct TranscriptionStageListView: View {
         case .stage(.finalizing): return "stage.finalizing"
         case .activity(.loadingModel): return "stage.transcribing.loadingModel"
         case .activity(.analyzing): return "stage.transcribing.analyzing"
+        case .diarizing: return "stage.diarizing"
         }
     }
 
@@ -618,11 +648,22 @@ private struct TranscriptionStageListView: View {
         switch step {
         case .stage: return L10n.t("\(key(for: step)).active", language)
         case .activity: return L10n.t(key(for: step), language)
+        case .diarizing: return L10n.t("stage.diarizing.active", language)
         }
     }
 
     private func doneLabel(for step: FlatStep) -> String {
-        L10n.t("\(key(for: step)).done", language)
+        if step == .diarizing {
+            switch diarizationState {
+            case .done(let speakerCount):
+                return String(format: L10n.t("stage.diarizing.done", language), speakerCount)
+            case .skipped:
+                return L10n.t("stage.diarizing.skipped", language)
+            case .running, nil:
+                return L10n.t("stage.diarizing.active", language)
+            }
+        }
+        return L10n.t("\(key(for: step)).done", language)
     }
 
     private func isLastStep(_ step: FlatStep) -> Bool {

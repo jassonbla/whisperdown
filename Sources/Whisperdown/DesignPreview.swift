@@ -4,6 +4,7 @@ import SwiftUI
 enum DesignPreviewScenario: String {
     case ready
     case processing
+    case diarizing   // processing + 화자 분석 스텝 (6행 스테퍼)
     case recording
     case failed
     case empty
@@ -86,6 +87,8 @@ struct DesignPreviewRootView: View {
                     partialTranscript: scenario.isProcessing
                         ? "안녕하세요. 오늘 회의에서는 다음 분기 로드맵과 담당자 배정을 이야기했습니다. 첫 번째 안건은 신규 온보딩 흐름 개선이었고, 두 번째 안건은 모델 다운로드 UX였습니다."
                         : nil,
+                    diarizationState: scenario.showsDiarizationStep ? .running : nil,
+                    showsDiarizationStep: scenario.showsDiarizationStep,
                     isWhisperReady: true,
                     elapsed: scenario.elapsed,
                     level: scenario.level,
@@ -136,7 +139,7 @@ private extension DesignPreviewScenario {
         switch self {
         case .empty:
             return []
-        case .ready, .processing, .recording, .failed:
+        case .ready, .processing, .diarizing, .recording, .failed:
             return DesignPreviewData.recordings
         }
     }
@@ -146,7 +149,11 @@ private extension DesignPreviewScenario {
     }
 
     var isProcessing: Bool {
-        self == .processing
+        self == .processing || self == .diarizing
+    }
+
+    var showsDiarizationStep: Bool {
+        self == .diarizing
     }
 
     var elapsed: TimeInterval {
@@ -165,7 +172,7 @@ private extension DesignPreviewScenario {
         switch self {
         case .ready, .recording:
             return DesignPreviewData.readyRecordingID
-        case .processing:
+        case .processing, .diarizing:
             return DesignPreviewData.processingRecordingID
         case .failed:
             return DesignPreviewData.failedRecordingID
@@ -205,19 +212,37 @@ private enum DesignPreviewData {
     static let recordings: [Recording] = [
         recording(
             id: readyRecordingID,
-            title: "오이아르사발은 북코리아의 빠른 패스를 방향만 바꿔",
+            title: "분기 로드맵 회의",
             createdAt: date(hour: 10, minute: 11),
-            duration: 12,
+            duration: 46,
             status: .ready,
             transcript: """
-            오이아르사발은 북코리아의 빠른 패스를 방향만 바꿔 선제골로 연결했습니다.
+            오늘 회의에서는 다음 분기 로드맵을 논의했습니다. 온보딩 개선 건은 시안이 완료되었고 다음 주 배포 예정입니다.
             """,
             segments: [
                 segment(
                     speaker: "Speaker 1",
                     startTime: 0,
-                    endTime: 12,
-                    text: "오이아르사발은 북코리아의 빠른 패스를 방향만 바꿔 선제골로 연결했습니다."
+                    endTime: 11,
+                    text: "오늘 회의에서는 다음 분기 로드맵을 논의하겠습니다. 온보딩 개선 건부터 진행 상황을 공유해 주시죠."
+                ),
+                segment(
+                    speaker: "Speaker 2",
+                    startTime: 12,
+                    endTime: 24,
+                    text: "네, 온보딩 화면 시안은 지난 금요일에 완료했고 개발 리뷰를 거쳐 다음 주 초 배포 가능할 것으로 보입니다."
+                ),
+                segment(
+                    speaker: "Speaker 1",
+                    startTime: 25,
+                    endTime: 34,
+                    text: "좋습니다. 모델 다운로드 UX 건은 어떻게 되고 있나요?"
+                ),
+                segment(
+                    speaker: "Speaker 2",
+                    startTime: 35,
+                    endTime: 46,
+                    text: "그 부분은 아직 설계 단계입니다. 진행률 표시와 백그라운드 다운로드를 함께 검토 중입니다."
                 )
             ]
         ),

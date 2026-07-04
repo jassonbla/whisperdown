@@ -148,6 +148,9 @@ struct OnboardingSheet: View {
             ModelListView(manager: manager)
                 .padding(.horizontal, Spacing.xl)
 
+            DiarizationSetupView(manager: manager)
+                .padding(.horizontal, Spacing.xl)
+
             sheetFooter {
                 Button(L10n.t("onboarding.modelPicker.back", language)) { step = .diagnostics }
                     .buttonStyle(.plain)
@@ -242,6 +245,8 @@ struct EngineDiagnosticsView: View {
                     .strokeBorder(Color.hairline, lineWidth: 1)
             }
 
+            diarizationDiagnosticsBox
+
             if needsBinaries {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     Text(L10n.t("engine.diagnostics.installHint", language))
@@ -286,11 +291,61 @@ struct EngineDiagnosticsView: View {
         }
     }
 
-    private func diagnosticRow(title: String, detail: String, isFound: Bool) -> some View {
+    /// 화자 분리(선택 기능) 상태 박스. isFullyConfigured 게이트에는 참여하지 않는다.
+    private var diarizationDiagnosticsBox: some View {
+        let diarizationStatus = SpeakerDiarizationEngine().status()
+
+        return VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text(L10n.t("diarization.section.title", language))
+                .font(Typography.caption)
+                .foregroundStyle(Palette.secondaryLabel)
+
+            VStack(spacing: 0) {
+                diagnosticRow(
+                    title: L10n.t("diarization.diagnostics.cli", language),
+                    detail: diarizationStatus.cli.url?.path ?? L10n.t("engine.diagnostics.notInstalled", language),
+                    isFound: diarizationStatus.cli.isFound,
+                    isOptional: true
+                )
+                Divider().overlay(Color.hairline)
+                diagnosticRow(
+                    title: L10n.t("diarization.diagnostics.segmentation", language),
+                    detail: diarizationStatus.segmentationModel.url?.lastPathComponent ?? L10n.t("engine.diagnostics.needsDownload", language),
+                    isFound: diarizationStatus.segmentationModel.isFound,
+                    isOptional: true
+                )
+                Divider().overlay(Color.hairline)
+                diagnosticRow(
+                    title: L10n.t("diarization.diagnostics.embedding", language),
+                    detail: diarizationStatus.embeddingModel.url?.lastPathComponent ?? L10n.t("engine.diagnostics.needsDownload", language),
+                    isFound: diarizationStatus.embeddingModel.isFound,
+                    isOptional: true
+                )
+            }
+            .background(Palette.bg1Muted, in: RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous)
+                    .strokeBorder(Color.hairline, lineWidth: 1)
+            }
+        }
+    }
+
+    private func diagnosticRow(title: String, detail: String, isFound: Bool, isOptional: Bool = false) -> some View {
         HStack(spacing: Spacing.md) {
-            Image(systemName: isFound ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(isFound ? Palette.success : Palette.warning)
+            Group {
+                if isFound {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Palette.success)
+                } else if isOptional {
+                    // 선택 기능의 미설치는 경고가 아니다 — 조용한 빈 원
+                    Image(systemName: "circle")
+                        .foregroundStyle(Palette.tertiaryLabel)
+                } else {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(Palette.warning)
+                }
+            }
+            .font(.system(size: 13, weight: .medium))
 
             Text(title)
                 .font(Typography.emphasis)
@@ -338,6 +393,161 @@ struct ModelListView: View {
         }
         .onAppear {
             manager.refreshInstalled()
+        }
+    }
+}
+
+// MARK: - 화자 분리 설치 (온보딩·Settings 공용)
+
+/// sherpa-onnx 사이드카(엔진 + 모델 2개)를 하나의 집계 행으로 설치/제거한다.
+struct DiarizationSetupView: View {
+    @Environment(\.appLanguage) private var language
+    @ObservedObject var manager: ModelDownloadManager
+
+    private enum Aggregate: Equatable {
+        case idle
+        case downloading(fraction: Double)
+        case failed(String)
+        case installed
+    }
+
+    private var aggregate: Aggregate {
+        let items = DiarizationCatalog.all
+        let states = items.map { manager.state(forFileName: $0.fileName) }
+
+        let anyDownloading = states.contains { if case .downloading = $0 { return true }; return false }
+        if anyDownloading {
+            // bytes 가중 진행률: 설치 완료 항목은 전체 크기로, 진행 중은 수신 바이트로 집계
+            var done: Double = 0
+            for (item, state) in zip(items, states) {
+                switch state {
+                case .installed:
+                    done += Double(item.approximateBytes)
+                case .downloading(_, let received, _):
+                    done += Double(received)
+                case .idle, .failed:
+                    break
+                }
+            }
+            return .downloading(fraction: min(1, done / Double(DiarizationCatalog.totalBytes)))
+        }
+
+        if states.allSatisfy({ $0 == .installed }) {
+            return .installed
+        }
+
+        for state in states {
+            if case .failed(let message) = state {
+                return .failed(message)
+            }
+        }
+
+        return .idle
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(alignment: .center, spacing: Spacing.md) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.t("diarization.section.title", language))
+                        .font(Typography.emphasis)
+                        .foregroundStyle(Palette.label)
+
+                    Text(L10n.t("diarization.section.subtitle", language))
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.tertiaryLabel)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: Spacing.md)
+
+                trailingControl
+            }
+            .padding(Spacing.md)
+
+            if case .failed(let message) = aggregate {
+                Text(message)
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.warning)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.bottom, Spacing.md)
+            }
+        }
+        .background(Palette.bg1Muted, in: RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous)
+                .strokeBorder(Color.hairline, lineWidth: 1)
+        }
+        .onAppear {
+            manager.refreshInstalled()
+        }
+    }
+
+    @ViewBuilder
+    private var trailingControl: some View {
+        switch aggregate {
+        case .idle, .failed:
+            Button {
+                installAll()
+            } label: {
+                Text(L10n.t("diarization.install", language))
+                    .font(Typography.emphasis)
+                    .foregroundStyle(Palette.primaryForeground)
+                    .padding(.horizontal, Spacing.md)
+                    .frame(height: 26)
+                    .background(Palette.primary, in: Capsule())
+            }
+            .buttonStyle(.plain)
+
+        case .downloading(let fraction):
+            HStack(spacing: Spacing.sm) {
+                Text("\(Int((fraction * 100).rounded()))%")
+                    .font(Typography.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.secondaryLabel)
+
+                CircularProcessingIndicator()
+                    .frame(width: 14, height: 14)
+
+                Button {
+                    cancelAll()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Palette.tertiaryLabel)
+                }
+                .buttonStyle(.plain)
+            }
+
+        case .installed:
+            HStack(spacing: Spacing.sm) {
+                Label(L10n.t("diarization.installed", language), systemImage: "checkmark.circle.fill")
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.success)
+
+                Button {
+                    try? SpeakerDiarizationEngine.uninstall()
+                    manager.refreshInstalled()
+                } label: {
+                    Text(L10n.t("diarization.remove", language))
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.secondaryLabel)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func installAll() {
+        for item in DiarizationCatalog.all where manager.state(forFileName: item.fileName) != .installed {
+            manager.startDownload(item)
+        }
+    }
+
+    private func cancelAll() {
+        for item in DiarizationCatalog.all {
+            if case .downloading = manager.state(forFileName: item.fileName) {
+                manager.cancelDownload(item)
+            }
         }
     }
 }

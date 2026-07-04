@@ -59,6 +59,16 @@ TitleExtractor → MarkdownWriter → {date}_{title}_추출.md
 
 Steps 2–4 are sub-signals inside the whisper-cli process (stderr markers + `-pp` progress + stdout segment text). The Apple Speech path has no such signals, so its stepper shows only 3 steps.
 
+## Speaker diarization (optional sidecar)
+
+When installed, a second subprocess — `sherpa-onnx-offline-speaker-diarization` (pyannote segmentation + NeMo TitaNet speaker embeddings, RTF ≈ 0.05) — runs **in parallel** with whisper-cli on the same 16 kHz wav, answering "who spoke when" while whisper answers "what was said". The stepper gains a "Speaker analysis" row between audio analysis and recognition.
+
+- **Merge**: whisper's full JSON (`-ojf`, already produced) carries per-token millisecond offsets. Each token is assigned to the speaker turn containing its midpoint (largest-overlap for overlapping turns, nearest turn otherwise); consecutive same-turn tokens become one `SpeakerSegment` named "Speaker N" by order of first appearance. A single-speaker result still splits per turn — free paragraphing.
+- **Silent-fallback contract**: diarization can never fail or delay a transcription. Any error, empty output, or timeout (60 s cap after whisper finishes) falls back to today's single "Speaker 1" segment and the stepper row shows "skipped". `EngineStatus.isFullyConfigured` (the app-readiness gate) does not include diarization.
+- **Text identity**: `Recording.transcript` and the hallucination filter keep using `transcript.txt` verbatim; diarization only shapes the segments array (and thus the Markdown `### Speaker N` sections, whose whitespace may differ from the flat txt).
+- **Install**: in-app via onboarding/Settings ("Speaker Separation" section, ≈65 MB), or `Scripts/install-diarization.sh`. Layout: `~/Library/Application Support/Whisperdown/Diarization/` with `sherpa-onnx/{bin,lib}` (rpath-relative, must stay siblings) and `Models/*.onnx`.
+- **Env overrides**: `WHISPERDOWN_DIARIZE_CLI`, `WHISPERDOWN_DIARIZE_SEGMENTATION`, `WHISPERDOWN_DIARIZE_EMBEDDING`, `WHISPERDOWN_DIARIZE_THRESHOLD` (clustering threshold, default 0.85; speaker count is auto-detected). Sherpa-onnx's threshold is a merge-distance cutoff, not a similarity cutoff — higher merges more aggressively (fewer speakers), lower fragments more (more speakers). 0.5 was tuned against a clean studio 2-speaker test asset but over-fragmented real close-talk phone-mic recordings (one real recording produced 4 spurious speakers for an actual 2-person conversation); 0.85 was empirically re-validated against that same recording (correct 2 speakers) with headroom before over-merging starts around 1.1.
+
 ## Validation vs. post-correction: there is NO post-correction
 
 The transcript text that lands in the Markdown file is **whisper's raw output**, verbatim. The full journey of the text:
@@ -71,16 +81,18 @@ One deliberate hook exists for future post-processing: every saved file contains
 
 ### Post-correction candidates (all currently absent)
 
-- **Paragraph segmentation** — whisper output is one continuous block; splitting on segment timestamps would be the cheapest readability win.
 - **Automatic summary** — fill the existing `## 요약` placeholder (local LLM or API).
-- **Speaker diarization** — the data model (`SpeakerSegment` array) is already shaped for it, but today the whole recording is a single "Speaker 1" segment. The README lists a diarization sidecar as the next planned step.
 - **Punctuation/spacing correction** — Korean post-processing model or LLM pass.
+
+(Speaker diarization and turn-based paragraphing shipped with the sherpa-onnx sidecar — see the section above.)
 
 ## Related files
 
 - `Sources/Whisperdown/WhisperCppTranscriptionEngine.swift` — whisper-cli invocation, progress/stage signals, validation
 - `Sources/Whisperdown/AppleSpeechTranscriptionEngine.swift` — fallback path
 - `Sources/Whisperdown/LiveSpeechTranscriptionSession.swift` — live preview during recording
-- `Sources/Whisperdown/ModelCatalog.swift` — downloadable model list
+- `Sources/Whisperdown/SpeakerDiarizationEngine.swift` — sherpa-onnx sidecar invocation and turn parsing
+- `Sources/Whisperdown/SpeakerTurnMerger.swift` — token/turn merge algorithm
+- `Sources/Whisperdown/ModelCatalog.swift` + `DiarizationCatalog.swift` — downloadable item lists
 - `Sources/Whisperdown/MarkdownWriter.swift` — output templating (no content transformation)
 - `Sources/Whisperdown/TitleExtractor.swift` — title heuristic

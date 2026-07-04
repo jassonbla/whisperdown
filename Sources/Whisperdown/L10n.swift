@@ -132,6 +132,7 @@ enum L10n {
         "detail.help.engineSettings": [.en: "Transcription Engine Settings", .ko: "전사 엔진 설정"],
         "detail.help.openMarkdownFolder": [.en: "Open Markdown Folder", .ko: "Markdown 폴더 열기"],
         "detail.help.chooseFolder": [.en: "Choose Save Folder", .ko: "저장 폴더 선택"],
+        "detail.help.retryTranscription": [.en: "Retry Transcription", .ko: "전사 재시도"],
         "detail.badge.recording": [.en: "Recording", .ko: "녹음 중"],
         "detail.badge.appleSpeechTemp": [.en: "Apple Speech (Temporary)", .ko: "Apple Speech (임시)"],
         "detail.badge.whisperLocal": [.en: "Whisper Local", .ko: "Whisper 로컬"],
@@ -208,6 +209,23 @@ enum L10n {
         "stage.transcribing.analyzing": [.en: "Analyzing audio", .ko: "오디오 분석 중"],
         "stage.transcribing.loadingModel.done": [.en: "Model loaded", .ko: "모델 로딩 완료"],
         "stage.transcribing.analyzing.done": [.en: "Audio analyzed", .ko: "오디오 분석 완료"],
+        "stage.diarizing.active": [.en: "Analyzing speakers", .ko: "화자 분석 중"],
+        "stage.diarizing.done": [.en: "Speakers identified (%d)", .ko: "화자 분석 완료 (%d명)"],
+        "stage.diarizing.skipped": [.en: "Speaker analysis skipped", .ko: "화자 분석 건너뜀"],
+
+        // MARK: Diarization setup
+        "diarization.section.title": [.en: "Speaker Separation (Optional)", .ko: "화자 분리 (선택)"],
+        "diarization.section.subtitle": [
+            .en: "Labels who said what. Downloads a small engine and two models (≈65 MB). Transcription works without it.",
+            .ko: "누가 말했는지 구분해 표시합니다. 소형 엔진과 모델 2개(약 65MB)를 내려받습니다. 설치하지 않아도 전사는 정상 동작합니다."
+        ],
+        "diarization.install": [.en: "Install", .ko: "설치"],
+        "diarization.installed": [.en: "Installed", .ko: "설치됨"],
+        "diarization.remove": [.en: "Remove", .ko: "제거"],
+        "diarization.diagnostics.cli": [.en: "Diarization engine", .ko: "화자 분리 엔진"],
+        "diarization.diagnostics.segmentation": [.en: "Segmentation model", .ko: "구간 분할 모델"],
+        "diarization.diagnostics.embedding": [.en: "Speaker embedding model", .ko: "화자 임베딩 모델"],
+        "error.download.extractFailed": [.en: "Failed to extract archive: %@", .ko: "압축 해제에 실패했습니다: %@"],
         "detail.partialTranscript.title": [.en: "Preview", .ko: "전사 미리보기"],
 
         // MARK: RecordingStore migration notes
