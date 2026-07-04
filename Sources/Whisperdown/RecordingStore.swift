@@ -74,7 +74,7 @@ final class RecordingStore: ObservableObject {
 
     func chooseMarkdownDirectory() {
         let panel = NSOpenPanel()
-        panel.title = "Markdown 저장 폴더"
+        panel.title = L10n.t("settings.markdownFolder.pickerTitle", AppLanguage.current)
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
@@ -185,7 +185,7 @@ final class RecordingStore: ObservableObject {
         if recording.status == .processing {
             return failedRecording(
                 from: recording,
-                note: "전사 작업이 앱 또는 로컬 엔진 중단으로 완료되지 않았습니다. 원본 오디오는 보관되어 있으니 전사 재시도를 실행해 주세요."
+                note: L10n.t("store.migration.interrupted", AppLanguage.current)
             )
         }
 
@@ -196,21 +196,21 @@ final class RecordingStore: ObservableObject {
         if isLiveDraftSavedAsFinal(recording) {
             return failedRecording(
                 from: recording,
-                note: "실시간 전사 draft가 최종 전사본으로 저장된 이전 버그의 영향으로 재전사가 필요합니다. 원본 오디오는 보관되어 있습니다."
+                note: L10n.t("store.migration.liveDraftBug", AppLanguage.current)
             )
         }
 
         if isLegacyPlaceholder(recording) {
             return failedRecording(
                 from: recording,
-                note: "이 항목은 전사 엔진 연결 전 생성되어 실제 전사문이 없습니다. 새 버전에서 다시 녹음하면 전사를 시도합니다."
+                note: L10n.t("store.migration.legacyPlaceholder", AppLanguage.current)
             )
         }
 
         if isKnownLowConfidenceHallucination(recording) {
             return failedRecording(
                 from: recording,
-                note: "낮은 신뢰도의 whisper.cpp 환각 문구로 판단되어 완료 처리하지 않았습니다. 원본 오디오는 보관되어 있습니다."
+                note: L10n.t("store.migration.hallucination", AppLanguage.current)
             )
         }
 
@@ -224,7 +224,7 @@ final class RecordingStore: ObservableObject {
 
     private func failedRecording(from recording: Recording, note: String) -> Recording {
         var migrated = recording
-        migrated.title = "전사 실패 \(AppFormatters.fileDate.string(from: recording.createdAt))"
+        migrated.title = String(format: L10n.t("processor.failureTitlePrefix", AppLanguage.current), AppFormatters.fileDate.string(from: recording.createdAt))
         migrated.status = .failed
         migrated.transcript = ""
         migrated.segments = []

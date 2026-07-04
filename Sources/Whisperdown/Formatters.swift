@@ -56,7 +56,7 @@ extension String {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !cleaned.isEmpty else {
-            return "새 녹음"
+            return L10n.t("titleExtractor.newRecording", AppLanguage.current)
         }
 
         return String(cleaned.prefix(48))

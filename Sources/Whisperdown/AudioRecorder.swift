@@ -30,7 +30,7 @@ final class AudioRecorder: NSObject, ObservableObject {
 
         let granted = await requestMicrophoneAccess()
         guard granted else {
-            errorMessage = "마이크 접근 권한이 필요합니다."
+            errorMessage = L10n.t("error.mic.permissionRequired", AppLanguage.current)
             return
         }
 

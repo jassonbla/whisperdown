@@ -7,7 +7,7 @@ struct WhisperModel: Identifiable, Sendable, Equatable {
     let fileName: String
     let displayName: String
     let approximateBytes: Int64
-    let detail: String
+    let detailKey: String
     let isRecommended: Bool
 
     var id: String { fileName }
@@ -27,35 +27,35 @@ enum ModelCatalog {
             fileName: "ggml-large-v3-turbo.bin",
             displayName: "Large v3 Turbo",
             approximateBytes: 1_624_555_275,
-            detail: "정확도·속도 균형 최상",
+            detailKey: "model.detail.largeV3Turbo",
             isRecommended: true
         ),
         WhisperModel(
             fileName: "ggml-large-v3.bin",
             displayName: "Large v3",
             approximateBytes: 3_095_033_483,
-            detail: "최고 정확도 · 가장 느림",
+            detailKey: "model.detail.largeV3",
             isRecommended: false
         ),
         WhisperModel(
             fileName: "ggml-medium.bin",
             displayName: "Medium",
             approximateBytes: 1_533_763_059,
-            detail: "중간 정확도",
+            detailKey: "model.detail.medium",
             isRecommended: false
         ),
         WhisperModel(
             fileName: "ggml-small.bin",
             displayName: "Small",
             approximateBytes: 487_601_967,
-            detail: "빠름 · 저용량",
+            detailKey: "model.detail.small",
             isRecommended: false
         ),
         WhisperModel(
             fileName: "ggml-base.bin",
             displayName: "Base",
             approximateBytes: 147_951_465,
-            detail: "테스트용 최소 모델",
+            detailKey: "model.detail.base",
             isRecommended: false
         )
     ]

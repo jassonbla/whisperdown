@@ -290,19 +290,19 @@ enum WhisperCppError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .executableMissing:
-            return "whisper.cpp 실행 파일 whisper-cli를 찾지 못했습니다. Homebrew whisper-cpp를 설치하거나 WHISPERDOWN_WHISPER_CLI를 설정해 주세요."
+            return L10n.t("error.engine.executableMissing", AppLanguage.current)
         case .modelMissing(let directory):
-            return "whisper.cpp 모델 파일을 찾지 못했습니다. ggml 모델을 \(directory)에 넣거나 WHISPERDOWN_WHISPER_MODEL을 설정해 주세요."
+            return String(format: L10n.t("error.engine.modelMissing", AppLanguage.current), directory)
         case .ffmpegMissing:
-            return "오디오 변환에 필요한 ffmpeg를 찾지 못했습니다."
+            return L10n.t("error.engine.ffmpegMissing", AppLanguage.current)
         case .emptyTranscript:
-            return "whisper.cpp 전사 결과가 비어 있습니다."
+            return L10n.t("error.engine.emptyTranscript", AppLanguage.current)
         case .lowConfidenceTranscript(let text):
-            return "전사 결과 신뢰도가 낮아 완료 처리하지 않았습니다. 감지된 문구: \(text)"
+            return String(format: L10n.t("error.engine.lowConfidence", AppLanguage.current), text)
         case .processLaunchFailed(let executable, let message):
-            return "\(executable) 실행에 실패했습니다: \(message)"
+            return String(format: L10n.t("error.engine.processLaunchFailed", AppLanguage.current), executable, message)
         case .processFailed(let executable, let output):
-            return "\(executable) 실행 중 오류가 발생했습니다: \(output)"
+            return String(format: L10n.t("error.engine.processFailed", AppLanguage.current), executable, output)
         }
     }
 }

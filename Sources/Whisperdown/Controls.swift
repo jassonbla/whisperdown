@@ -35,6 +35,8 @@ struct IconButton: View {
 }
 
 struct RecordButton: View {
+    @Environment(\.appLanguage) private var language
+
     let isRecording: Bool
     let isProcessing: Bool
     let size: CGFloat
@@ -65,12 +67,13 @@ struct RecordButton: View {
         }
         .buttonStyle(QuietButtonStyle())
         .disabled(isProcessing)
-        .help(isRecording ? "녹음 종료" : "녹음 시작")
+        .help(isRecording ? L10n.t("controls.recordButton.stop", language) : L10n.t("controls.recordButton.start", language))
         .onHover { isHovering = $0 }
     }
 }
 
 struct SearchField: View {
+    @Environment(\.appLanguage) private var language
     @Binding var text: String
 
     var body: some View {
@@ -79,7 +82,7 @@ struct SearchField: View {
                 .font(Typography.emphasis)
                 .foregroundStyle(Palette.tertiaryLabel)
 
-            TextField("제목, 전사문", text: $text)
+            TextField(L10n.t("controls.search.placeholder", language), text: $text)
                 .textFieldStyle(.plain)
                 .font(Typography.emphasis)
                 .foregroundStyle(Palette.label)

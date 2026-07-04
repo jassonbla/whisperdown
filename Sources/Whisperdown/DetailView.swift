@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct DetailView: View {
+    @Environment(\.appLanguage) private var language
+
     let recording: Recording?
     let isRecording: Bool
     let isProcessing: Bool
@@ -51,15 +53,15 @@ struct DetailView: View {
                 ModeBadge(title: modeBadgeTitle, systemName: modeBadgeIcon)
             }
             .buttonStyle(.plain)
-            .help("전사 엔진 설정")
+            .help(L10n.t("detail.help.engineSettings", language))
 
             Spacer()
 
             HStack(spacing: Spacing.xs) {
                 IconButton(systemName: "folder", action: onOpenFolder)
-                    .help("Markdown 폴더 열기")
+                    .help(L10n.t("detail.help.openMarkdownFolder", language))
                 IconButton(systemName: "gearshape", action: onChooseFolder)
-                    .help("저장 폴더 선택")
+                    .help(L10n.t("detail.help.chooseFolder", language))
             }
         }
         .padding(.horizontal, Spacing.lg)
@@ -75,11 +77,11 @@ struct DetailView: View {
 
     private var modeBadgeTitle: String {
         if isRecording {
-            return "녹음 중"
+            return L10n.t("detail.badge.recording", language)
         }
 
         if !isWhisperReady {
-            return "Apple Speech (임시)"
+            return L10n.t("detail.badge.appleSpeechTemp", language)
         }
 
         guard let recording else {
@@ -88,11 +90,11 @@ struct DetailView: View {
 
         switch recording.status {
         case .ready:
-            return recording.engineNote.contains("whisper.cpp") ? "Whisper 로컬" : "전사 완료"
+            return recording.engineNote.contains("whisper.cpp") ? L10n.t("detail.badge.whisperLocal", language) : L10n.t("detail.badge.transcribed", language)
         case .processing:
-            return isProcessing ? "전사 중" : "재시도 필요"
+            return isProcessing ? L10n.t("detail.badge.transcribing", language) : L10n.t("detail.badge.retryNeeded", language)
         case .failed:
-            return "검토 필요"
+            return L10n.t("detail.badge.reviewNeeded", language)
         }
     }
 
@@ -122,7 +124,7 @@ struct DetailView: View {
     @ViewBuilder
     private var titleBlock: some View {
         if isRecording {
-            RecordingTitle(title: "녹음 중", subtitle: AppFormatters.duration(elapsed))
+            RecordingTitle(title: L10n.t("detail.badge.recording", language), subtitle: AppFormatters.duration(elapsed))
         } else if let recording {
             RecordingTitle(
                 title: recording.title,
@@ -143,13 +145,13 @@ struct DetailView: View {
                         .frame(width: 8, height: 8)
                         .recPulse()
 
-                    Text(liveTranscriptText.isEmpty ? "실시간 전사 대기" : "실시간 전사")
+                    Text(liveTranscriptText.isEmpty ? L10n.t("detail.live.waitingLabel", language) : L10n.t("detail.live.label", language))
                         .font(Typography.body)
                         .foregroundStyle(Palette.destructive)
                 }
 
                 if liveTranscriptText.isEmpty {
-                    Text("말을 시작하면 이 영역에 임시 전사가 표시됩니다. 최종 Markdown은 녹음 종료 후 전체 오디오로 다시 전사합니다.")
+                    Text(L10n.t("detail.live.placeholder", language))
                         .font(Typography.body)
                         .foregroundStyle(Palette.secondaryLabel)
                         .lineSpacing(4)
@@ -172,8 +174,8 @@ struct DetailView: View {
                     VStack(spacing: Spacing.md) {
                         CenterStatusView(
                             systemName: "exclamationmark.triangle.fill",
-                            title: "전사 중단됨",
-                            message: "전사 작업이 더 이상 실행 중이지 않습니다. 원본 오디오는 보관되어 있으니 다시 시도할 수 있습니다.",
+                            title: L10n.t("detail.status.interrupted.title", language),
+                            message: L10n.t("detail.status.interrupted.message", language),
                             tint: Palette.warning
                         )
 
@@ -186,7 +188,7 @@ struct DetailView: View {
                 VStack(spacing: Spacing.md) {
                     CenterStatusView(
                         systemName: "exclamationmark.triangle.fill",
-                        title: "전사 확인 필요",
+                        title: L10n.t("detail.status.reviewNeeded.title", language),
                         message: recording.engineNote,
                         tint: Palette.warning
                     )
@@ -209,8 +211,8 @@ struct DetailView: View {
         } else {
             CenterStatusView(
                 systemName: "waveform.circle",
-                title: "녹음 없음",
-                message: "⌘N 또는 사이드바의 새 녹음 버튼으로 시작하세요.",
+                title: L10n.t("detail.status.noRecording.title", language),
+                message: L10n.t("detail.status.noRecording.message", language),
                 tint: Palette.secondaryLabel
             )
         }
@@ -224,7 +226,7 @@ struct DetailView: View {
         Button {
             onRetryTranscription(recording)
         } label: {
-            Label("전사 재시도", systemImage: "arrow.clockwise")
+            Label(L10n.t("detail.retryTranscription", language), systemImage: "arrow.clockwise")
                 .font(Typography.emphasis)
                 .foregroundStyle(Palette.label.opacity(0.84))
                 .padding(.horizontal, Spacing.md)
@@ -421,6 +423,8 @@ private struct TransportDeck: View {
 }
 
 private struct TransportIsland: View {
+    @Environment(\.appLanguage) private var language
+
     let isRecording: Bool
     let isProcessing: Bool
     let canUsePlayback: Bool
@@ -436,7 +440,7 @@ private struct TransportIsland: View {
     var body: some View {
         HStack(spacing: 8) {
             TransportIconButton(systemName: "gobackward.10", isDisabled: !canUsePlayback, action: onSeekBackward)
-                .help("10초 뒤로")
+                .help(L10n.t("detail.transport.help.seekBackward", language))
 
             Button(action: onPlayPauseTapped) {
                 ZStack {
@@ -458,7 +462,7 @@ private struct TransportIsland: View {
             .keyboardShortcut(.space, modifiers: [])
 
             TransportIconButton(systemName: "goforward.10", isDisabled: !canUsePlayback, action: onSeekForward)
-                .help("10초 앞으로")
+                .help(L10n.t("detail.transport.help.seekForward", language))
         }
     }
 
@@ -472,10 +476,10 @@ private struct TransportIsland: View {
 
     private var primaryHelpText: String {
         if isRecording {
-            return "녹음 정지"
+            return L10n.t("detail.transport.help.stopRecording", language)
         }
 
-        return canUsePlayback ? (isPlaybackPlaying ? "일시정지" : "재생") : "녹음 없음"
+        return canUsePlayback ? (isPlaybackPlaying ? L10n.t("detail.transport.help.pause", language) : L10n.t("detail.transport.help.play", language)) : L10n.t("sidebar.empty.noRecordings", language)
     }
 }
 
@@ -507,12 +511,14 @@ private struct TransportIconButton: View {
 }
 
 private struct TranscriptionStatusView: View {
+    @Environment(\.appLanguage) private var language
+
     var body: some View {
         VStack(spacing: Spacing.md) {
             VStack(spacing: Spacing.xs) {
-                AnimatedEllipsisText(baseText: "전사 중")
+                AnimatedEllipsisText(baseText: L10n.t("sidebar.bottomStatus.transcribing", language))
 
-                Text("로컬 모델이 오디오를 Markdown으로 정리하고 있습니다.")
+                Text(L10n.t("detail.transcribing.message", language))
                     .font(Typography.body)
                     .foregroundStyle(Palette.secondaryLabel)
                     .multilineTextAlignment(.center)

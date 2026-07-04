@@ -34,7 +34,7 @@ final class AudioPlaybackController: NSObject, ObservableObject, AVAudioPlayerDe
             errorMessage = nil
             playLoadedPlayer()
         } catch {
-            errorMessage = "오디오를 재생하지 못했습니다: \(error.localizedDescription)"
+            errorMessage = String(format: L10n.t("error.playback.failed", AppLanguage.current), error.localizedDescription)
         }
     }
 
@@ -83,7 +83,7 @@ final class AudioPlaybackController: NSObject, ObservableObject, AVAudioPlayerDe
         }
 
         guard player.play() else {
-            errorMessage = "오디오 재생을 시작하지 못했습니다."
+            errorMessage = L10n.t("error.playback.startFailed", AppLanguage.current)
             return
         }
 
