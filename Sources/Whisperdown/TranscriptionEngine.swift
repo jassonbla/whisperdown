@@ -4,13 +4,17 @@ struct TranscriptionEngine: Sendable {
     private let whisper = WhisperCppTranscriptionEngine()
     private let appleSpeech = AppleSpeechTranscriptionEngine()
 
-    func transcribe(audio: RecordedAudio) async throws -> TranscriptResult {
+    func transcribe(
+        audio: RecordedAudio,
+        onStageChange: @MainActor @Sendable (TranscriptionStage) -> Void = { _ in },
+        onProgress: @escaping @MainActor @Sendable (Double) -> Void = { _ in }
+    ) async throws -> TranscriptResult {
         if whisper.isConfigured {
-            return try await whisper.transcribe(audio: audio)
+            return try await whisper.transcribe(audio: audio, onStageChange: onStageChange, onProgress: onProgress)
         }
 
         do {
-            var result = try await appleSpeech.transcribe(audio: audio)
+            var result = try await appleSpeech.transcribe(audio: audio, onStageChange: onStageChange)
             result.engineNote = "\(result.engineNote) fallback. whisper.cpp is not configured."
             return result
         } catch {

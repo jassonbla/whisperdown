@@ -3,7 +3,9 @@ import Foundation
 @MainActor
 final class RecordingProcessor: ObservableObject {
     @Published private(set) var isProcessing = false
-    @Published private(set) var processingMessage: String?
+    @Published private(set) var processingStage: TranscriptionStage?
+    @Published private(set) var transcriptionProgress: Double?
+    @Published private(set) var transcriptionStartedAt: Date?
 
     private let transcriptionEngine = TranscriptionEngine()
     private let titleExtractor = TitleExtractor()
@@ -15,10 +17,11 @@ final class RecordingProcessor: ObservableObject {
         onCreated: (Recording) -> Void = { _ in }
     ) async -> Recording? {
         isProcessing = true
-        processingMessage = L10n.t("processor.preparing", AppLanguage.current)
         defer {
             isProcessing = false
-            processingMessage = nil
+            processingStage = nil
+            transcriptionProgress = nil
+            transcriptionStartedAt = nil
         }
 
         let transcribingLabel = L10n.t("detail.badge.transcribing", AppLanguage.current)
@@ -38,8 +41,20 @@ final class RecordingProcessor: ObservableObject {
         onCreated(recording)
 
         do {
-            processingMessage = transcribingLabel
-            let transcript = try await transcriptionEngine.transcribe(audio: audio)
+            let transcript = try await transcriptionEngine.transcribe(
+                audio: audio,
+                onStageChange: { [weak self] stage in
+                    self?.processingStage = stage
+                    if stage == .transcribing {
+                        self?.transcriptionStartedAt = Date()
+                    }
+                },
+                onProgress: { [weak self] fraction in
+                    guard let self else { return }
+                    // 늦게 도착한 라인이 진행률을 되돌리지 않도록 단조 증가 보장
+                    transcriptionProgress = max(transcriptionProgress ?? 0, fraction)
+                }
+            )
             let title = titleExtractor.title(from: transcript.text, fallbackDate: audio.startedAt)
             let markdownURL = store.uniqueMarkdownURL(for: audio.startedAt, title: title)
 
@@ -73,10 +88,11 @@ final class RecordingProcessor: ObservableObject {
     func retry(recording: Recording, store: RecordingStore) async -> Recording? {
         isProcessing = true
         let transcribingLabel = L10n.t("detail.badge.transcribing", AppLanguage.current)
-        processingMessage = transcribingLabel
         defer {
             isProcessing = false
-            processingMessage = nil
+            processingStage = nil
+            transcriptionProgress = nil
+            transcriptionStartedAt = nil
         }
 
         var updated = recording
@@ -94,7 +110,20 @@ final class RecordingProcessor: ObservableObject {
         )
 
         do {
-            let transcript = try await transcriptionEngine.transcribe(audio: audio)
+            let transcript = try await transcriptionEngine.transcribe(
+                audio: audio,
+                onStageChange: { [weak self] stage in
+                    self?.processingStage = stage
+                    if stage == .transcribing {
+                        self?.transcriptionStartedAt = Date()
+                    }
+                },
+                onProgress: { [weak self] fraction in
+                    guard let self else { return }
+                    // 늦게 도착한 라인이 진행률을 되돌리지 않도록 단조 증가 보장
+                    transcriptionProgress = max(transcriptionProgress ?? 0, fraction)
+                }
+            )
             let title = titleExtractor.title(from: transcript.text, fallbackDate: audio.startedAt)
             let markdownURL = store.uniqueMarkdownURL(for: audio.startedAt, title: title)
 

@@ -17,7 +17,11 @@ struct WhisperCppTranscriptionEngine: Sendable {
         )
     }
 
-    func transcribe(audio: RecordedAudio) async throws -> TranscriptResult {
+    func transcribe(
+        audio: RecordedAudio,
+        onStageChange: @MainActor @Sendable (TranscriptionStage) -> Void = { _ in },
+        onProgress: @escaping @MainActor @Sendable (Double) -> Void = { _ in }
+    ) async throws -> TranscriptResult {
         guard let executableURL else {
             throw WhisperCppError.executableMissing
         }
@@ -42,6 +46,8 @@ struct WhisperCppTranscriptionEngine: Sendable {
         let outputTextURL = workingDirectory.appendingPathComponent("transcript.txt")
         let outputJSONURL = workingDirectory.appendingPathComponent("transcript.json")
 
+        await onStageChange(.converting)
+
         try await run(
             executableURL: ffmpegURL,
             arguments: [
@@ -64,14 +70,24 @@ struct WhisperCppTranscriptionEngine: Sendable {
             "-ojf",
             "-of", outputBaseURL.path,
             "-nt",
-            "-np"
+            "-np",
+            "-pp"
         ]
 
         if !usesGPU {
             whisperArguments.append("--no-gpu")
         }
 
-        try await run(executableURL: executableURL, arguments: whisperArguments)
+        await onStageChange(.transcribing)
+
+        try await run(executableURL: executableURL, arguments: whisperArguments) { line in
+            guard let fraction = Self.parseProgressFraction(from: line) else {
+                return
+            }
+            Task { await onProgress(fraction) }
+        }
+
+        await onStageChange(.finalizing)
 
         let text = try String(contentsOf: outputTextURL, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -185,46 +201,84 @@ struct WhisperCppTranscriptionEngine: Sendable {
         }
     }
 
-    private func run(executableURL: URL, arguments: [String]) async throws {
-        try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
+    private func run(
+        executableURL: URL,
+        arguments: [String],
+        onStderrLine: @escaping @Sendable (String) -> Void = { _ in }
+    ) async throws {
+        let process = Process()
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
 
-            process.executableURL = executableURL
-            process.arguments = arguments
-            process.standardInput = FileHandle.nullDevice
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
+        process.executableURL = executableURL
+        process.arguments = arguments
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
 
-            process.terminationHandler = { process in
-                let output = String(
-                    data: outputPipe.fileHandleForReading.readDataToEndOfFile(),
-                    encoding: .utf8
-                ) ?? ""
-                let errorOutput = String(
-                    data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
-                    encoding: .utf8
-                ) ?? ""
-
-                if process.terminationStatus == 0 {
-                    continuation.resume()
-                } else {
-                    continuation.resume(
-                        throwing: WhisperCppError.processFailed(
-                            executableURL.lastPathComponent,
-                            output + errorOutput
-                        )
-                    )
-                }
-            }
-
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: WhisperCppError.processLaunchFailed(executableURL.path, error.localizedDescription))
+        // 종료 상태만 전달. AsyncStream은 순회 전에 yield돼도 버퍼링하므로
+        // run() 전에 핸들러를 걸고 뒤에서 await해도 안전하다.
+        let terminationStatuses = AsyncStream<Int32> { continuation in
+            process.terminationHandler = { finished in
+                continuation.yield(finished.terminationStatus)
+                continuation.finish()
             }
         }
+
+        do {
+            try process.run()
+        } catch {
+            throw WhisperCppError.processLaunchFailed(executableURL.path, error.localizedDescription)
+        }
+
+        // 두 파이프를 동시에 라인 단위로 드레인(파이프 버퍼 데드락 방지).
+        // stderr 라인은 스트리밍 콜백에 전달하면서 에러 보고용 전체 캡처도 유지.
+        let stderrTask = Task<String, Never> {
+            var captured = ""
+            do {
+                for try await line in errorPipe.fileHandleForReading.bytes.lines {
+                    onStderrLine(line)
+                    captured += line + "\n"
+                }
+            } catch {}
+            return captured
+        }
+        let stdoutTask = Task<String, Never> {
+            var captured = ""
+            do {
+                for try await line in outputPipe.fileHandleForReading.bytes.lines {
+                    captured += line + "\n"
+                }
+            } catch {}
+            return captured
+        }
+
+        var status: Int32 = -1
+        for await value in terminationStatuses {
+            status = value
+        }
+
+        let errorOutput = await stderrTask.value
+        let output = await stdoutTask.value
+
+        guard status == 0 else {
+            throw WhisperCppError.processFailed(
+                executableURL.lastPathComponent,
+                output + errorOutput
+            )
+        }
+    }
+
+    /// "whisper_print_progress_callback: progress =  42%" → 0.42
+    /// 30초 미만 클립은 100%를 초과하는 값이 나올 수 있어 0...1로 클램프한다.
+    static func parseProgressFraction(from line: String) -> Double? {
+        guard line.hasPrefix("whisper_print_progress_callback:"),
+              let match = line.firstMatch(of: #/progress\s*=\s*(\d+)%/#),
+              let percent = Double(match.1) else {
+            return nil
+        }
+
+        return min(max(percent, 0), 100) / 100
     }
 
     private func validateTranscript(text: String, audioDuration: TimeInterval, jsonURL: URL) throws {

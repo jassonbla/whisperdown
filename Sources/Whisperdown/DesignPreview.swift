@@ -79,6 +79,9 @@ struct DesignPreviewRootView: View {
                     recording: selectedRecording,
                     isRecording: scenario.isRecording,
                     isProcessing: scenario.isProcessing,
+                    processingStage: scenario.isProcessing ? .transcribing : nil,
+                    transcriptionProgress: scenario.isProcessing ? 0.42 : nil,
+                    transcriptionStartedAt: scenario.isProcessing ? Date().addingTimeInterval(-95) : nil,
                     isWhisperReady: true,
                     elapsed: scenario.elapsed,
                     level: scenario.level,
@@ -216,19 +219,12 @@ private enum DesignPreviewData {
         ),
         recording(
             id: processingRecordingID,
-            title: "감사합니다.",
+            title: "전사 중",
             createdAt: date(hour: 9, minute: 57),
             duration: 3,
-            status: .ready,
-            transcript: "감사합니다.",
-            segments: [
-                segment(
-                    speaker: "Speaker 1",
-                    startTime: 0,
-                    endTime: 3,
-                    text: "감사합니다."
-                )
-            ]
+            status: .processing,
+            transcript: "",
+            segments: []
         ),
         recording(
             id: failedRecordingID,

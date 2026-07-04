@@ -195,6 +195,16 @@ enum L10n {
         "processor.transcribingNote": [.en: "Transcription in progress", .ko: "전사 처리 중"],
         "processor.failureTitlePrefix": [.en: "Transcription Failed %@", .ko: "전사 실패 %@"],
 
+        // MARK: TranscriptionStage
+        "stage.converting.active": [.en: "Converting Audio", .ko: "오디오 변환 중"],
+        "stage.transcribing.active": [.en: "Transcribing", .ko: "음성 인식 중"],
+        "stage.finalizing.active": [.en: "Finalizing", .ko: "검증 및 후처리 중"],
+        "stage.converting.done": [.en: "Audio Converted", .ko: "오디오 변환 완료"],
+        "stage.transcribing.done": [.en: "Transcribed", .ko: "음성 인식 완료"],
+        "stage.finalizing.done": [.en: "Finalized", .ko: "검증 완료"],
+        "stage.transcribing.percent": [.en: "%d%%", .ko: "%d%%"],
+        "stage.transcribing.eta": [.en: "about %@ left", .ko: "약 %@ 남음"],
+
         // MARK: RecordingStore migration notes
         "store.migration.interrupted": [
             .en: "The transcription task did not complete because the app or local engine was interrupted. The original audio is preserved — please retry transcription.",
