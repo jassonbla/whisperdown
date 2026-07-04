@@ -75,6 +75,10 @@ The app currently runs `whisper-cli` in CPU safe mode by default because the Hom
 export WHISPERDOWN_WHISPER_GPU=1
 ```
 
+## Transcription Pipeline
+
+See [docs/transcription-pipeline.md](docs/transcription-pipeline.md) for the conceptual breakdown: engine vs. model, component roles, stage signals, and the validation-not-correction policy for saved Markdown.
+
 ## Planned Transcription Pipeline
 
 1. Record `.m4a` with AVFoundation.
