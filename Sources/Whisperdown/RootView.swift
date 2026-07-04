@@ -18,6 +18,7 @@ struct RootView: View {
     @State private var searchText = ""
     @State private var onboardingStep: OnboardingSheet.Step?
     @State private var isWhisperReady = WhisperCppTranscriptionEngine().status().isFullyConfigured
+    @State private var isDiarizationReady = SpeakerDiarizationEngine().isConfigured
     @State private var pendingDeletion: Recording?
 
     private var filteredRecordings: [Recording] {
@@ -86,6 +87,7 @@ struct RootView: View {
             }
             .onChange(of: modelManager.states) {
                 isWhisperReady = WhisperCppTranscriptionEngine().status().isFullyConfigured
+                isDiarizationReady = SpeakerDiarizationEngine().isConfigured
             }
             .onReceive(NotificationCenter.default.publisher(for: .openEngineSetupRequested)) { _ in
                 onboardingStep = .diagnostics
@@ -96,6 +98,7 @@ struct RootView: View {
             .animation(MotionToken.quick, value: selectedRecordingID)
             .onAppear {
                 isWhisperReady = WhisperCppTranscriptionEngine().status().isFullyConfigured
+                isDiarizationReady = SpeakerDiarizationEngine().isConfigured
                 if !hasCompletedOnboarding {
                     onboardingStep = .welcome
                 }
@@ -108,6 +111,7 @@ struct RootView: View {
                     hasCompletedOnboarding = true
                     onboardingStep = nil
                     isWhisperReady = WhisperCppTranscriptionEngine().status().isFullyConfigured
+                    isDiarizationReady = SpeakerDiarizationEngine().isConfigured
                 }
             }
     }
@@ -149,6 +153,8 @@ struct RootView: View {
             transcriptionStartedAt: processor.transcriptionStartedAt,
             transcriptionActivity: processor.transcriptionActivity,
             partialTranscript: processor.partialTranscript,
+            diarizationState: processor.diarizationState,
+            showsDiarizationStep: isWhisperReady && isDiarizationReady,
             isWhisperReady: isWhisperReady,
             elapsed: recorder.elapsed,
             level: recorder.level,

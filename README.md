@@ -11,7 +11,7 @@ Native macOS recording app for turning Korean meeting recordings into Markdown.
 - Default output folder: `~/Documents/Whisperdown`.
 - Current transcription MVP prefers `whisper.cpp` with Korean language selection.
 - Apple Speech is kept only as a fallback when `whisper.cpp` is not configured.
-- The next implementation step is a diarization sidecar for speaker separation.
+- Optional speaker separation via a sherpa-onnx diarization sidecar (installed in-app or with `Scripts/install-diarization.sh`).
 
 ## Build
 
@@ -77,7 +77,13 @@ export WHISPERDOWN_WHISPER_GPU=1
 
 ## Transcription Pipeline
 
-See [docs/transcription-pipeline.md](docs/transcription-pipeline.md) for the conceptual breakdown: engine vs. model, component roles, stage signals, and the validation-not-correction policy for saved Markdown.
+See [docs/transcription-pipeline.md](docs/transcription-pipeline.md) for the conceptual breakdown: engine vs. model, component roles, stage signals, the optional diarization sidecar, and the validation-not-correction policy for saved Markdown.
+
+Speaker separation is optional. Install it from onboarding/Settings ("Speaker Separation" section, ≈65 MB) or via:
+
+```bash
+Scripts/install-diarization.sh
+```
 
 ## Planned Transcription Pipeline
 

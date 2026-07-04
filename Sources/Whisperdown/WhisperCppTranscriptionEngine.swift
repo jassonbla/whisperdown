@@ -22,7 +22,8 @@ struct WhisperCppTranscriptionEngine: Sendable {
         onStageChange: @MainActor @Sendable (TranscriptionStage) -> Void = { _ in },
         onProgress: @escaping @MainActor @Sendable (Double) -> Void = { _ in },
         onActivity: @escaping @MainActor @Sendable (TranscriptionActivity) -> Void = { _ in },
-        onPartialText: @escaping @MainActor @Sendable (String) -> Void = { _ in }
+        onPartialText: @escaping @MainActor @Sendable (String) -> Void = { _ in },
+        onDiarization: @escaping @MainActor @Sendable (DiarizationStepState) -> Void = { _ in }
     ) async throws -> TranscriptResult {
         guard let executableURL else {
             throw WhisperCppError.executableMissing
@@ -50,7 +51,7 @@ struct WhisperCppTranscriptionEngine: Sendable {
 
         await onStageChange(.converting)
 
-        try await run(
+        try await ProcessRunner.run(
             executableURL: ffmpegURL,
             arguments: [
                 "-y",
@@ -79,23 +80,53 @@ struct WhisperCppTranscriptionEngine: Sendable {
             whisperArguments.append("--no-gpu")
         }
 
+        // 화자 분리는 whisper와 같은 wav를 소비하므로 병렬 실행한다 (RTF ~0.05, 보통 먼저 끝남).
+        // 어떤 실패도 전사를 깨지 않는다 — Task<..., Never> + 내부 catch로 조용히 폴백.
+        let diarizer = SpeakerDiarizationEngine()
+        var diarizationTask: Task<[SpeakerTurn]?, Never>?
+        if diarizer.isConfigured {
+            await onDiarization(.running)
+            diarizationTask = Task {
+                do {
+                    let turns = try await diarizer.diarize(wavURL: wavURL)
+                    let speakerCount = Set(turns.map(\.speakerIndex)).count
+                    await onDiarization(.done(speakerCount: speakerCount))
+                    return turns
+                } catch {
+                    await onDiarization(.skipped)
+                    return nil
+                }
+            }
+        }
+
         await onStageChange(.transcribing)
         await onActivity(.loadingModel)
 
-        try await run(
-            executableURL: executableURL,
-            arguments: whisperArguments,
-            onStderrLine: { line in
-                if line.hasPrefix("main: processing") {
-                    Task { await onActivity(.analyzing) }
-                    return
-                }
-                if let fraction = Self.parseProgressFraction(from: line) {
-                    Task { await onProgress(fraction) }
-                }
-            },
-            onStdoutText: onPartialText
-        )
+        do {
+            try await ProcessRunner.run(
+                executableURL: executableURL,
+                arguments: whisperArguments,
+                onStderrLine: { line in
+                    if line.hasPrefix("main: processing") {
+                        Task { await onActivity(.analyzing) }
+                        return
+                    }
+                    if let fraction = Self.parseProgressFraction(from: line) {
+                        Task { await onProgress(fraction) }
+                    }
+                },
+                onStdoutText: onPartialText
+            )
+        } catch {
+            // defer가 워크디렉토리를 지우기 전에 사이드카 프로세스 종료를 보장
+            diarizationTask?.cancel()
+            _ = await diarizationTask?.value
+            throw error
+        }
+
+        // 스테퍼 무결성 계약: .finalizing 발화 전에 diarization 터미널 상태를 해소한다.
+        // 평시에는 이미 끝나 있어 즉시 통과; 60초 캡으로 행 걸림 방지.
+        let turns = await Self.resolveTurns(diarizationTask, timeoutSeconds: 60, onTimeout: onDiarization)
 
         await onStageChange(.finalizing)
 
@@ -106,20 +137,60 @@ struct WhisperCppTranscriptionEngine: Sendable {
             throw WhisperCppError.emptyTranscript
         }
 
-        try validateTranscript(text: text, audioDuration: audio.duration, jsonURL: outputJSONURL)
+        let payload = (try? Data(contentsOf: outputJSONURL))
+            .flatMap { try? JSONDecoder().decode(WhisperJSONOutput.self, from: $0) }
 
-        return TranscriptResult(
-            text: text,
-            segments: [
-                SpeakerSegment(
-                    speaker: "Speaker 1",
-                    startTime: 0,
-                    endTime: audio.duration,
-                    text: text
-                )
-            ],
-            engineNote: "whisper.cpp \(modelURL.lastPathComponent)\(usesGPU ? "" : " CPU safe mode")"
-        )
+        try validateTranscript(text: text, audioDuration: audio.duration, payload: payload)
+
+        var segments = [
+            SpeakerSegment(
+                speaker: "Speaker 1",
+                startTime: 0,
+                endTime: audio.duration,
+                text: text
+            )
+        ]
+        var engineNote = "whisper.cpp \(modelURL.lastPathComponent)\(usesGPU ? "" : " CPU safe mode")"
+
+        if let turns,
+           let payload,
+           let merged = SpeakerTurnMerger.merge(turns: turns, tokens: payload.tokenTimings) {
+            segments = merged
+            let speakerCount = Set(merged.map(\.speaker)).count
+            engineNote += " + diarization (\(speakerCount) speaker\(speakerCount == 1 ? "" : "s"))"
+        }
+
+        return TranscriptResult(text: text, segments: segments, engineNote: engineNote)
+    }
+
+    /// diarization Task를 타임아웃과 레이스시켜 해소한다. 타임아웃 시 취소 + .skipped 통지.
+    private static func resolveTurns(
+        _ task: Task<[SpeakerTurn]?, Never>?,
+        timeoutSeconds: UInt64,
+        onTimeout: @escaping @MainActor @Sendable (DiarizationStepState) -> Void
+    ) async -> [SpeakerTurn]? {
+        guard let task else {
+            return nil
+        }
+
+        return await withTaskGroup(of: [SpeakerTurn]?.self) { group in
+            group.addTask { await task.value }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: timeoutSeconds * 1_000_000_000)
+                return nil
+            }
+
+            let first = await group.next() ?? nil
+            group.cancelAll()
+
+            if first == nil {
+                task.cancel()
+                _ = await task.value
+                await onTimeout(.skipped)
+            }
+
+            return first
+        }
     }
 
     private var executableURL: URL? {
@@ -211,132 +282,6 @@ struct WhisperCppTranscriptionEngine: Sendable {
         }
     }
 
-    private func run(
-        executableURL: URL,
-        arguments: [String],
-        onStderrLine: @escaping @Sendable (String) -> Void = { _ in },
-        onStdoutText: (@MainActor @Sendable (String) -> Void)? = nil
-    ) async throws {
-        let process = Process()
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-
-        process.executableURL = executableURL
-        process.arguments = arguments
-        process.standardInput = FileHandle.nullDevice
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-
-        // 종료 상태만 전달. AsyncStream은 순회 전에 yield돼도 버퍼링하므로
-        // run() 전에 핸들러를 걸고 뒤에서 await해도 안전하다.
-        let terminationStatuses = AsyncStream<Int32> { continuation in
-            process.terminationHandler = { finished in
-                continuation.yield(finished.terminationStatus)
-                continuation.finish()
-            }
-        }
-
-        do {
-            try process.run()
-        } catch {
-            throw WhisperCppError.processLaunchFailed(executableURL.path, error.localizedDescription)
-        }
-
-        // 두 파이프를 동시에 라인 단위로 드레인(파이프 버퍼 데드락 방지).
-        // stderr 라인은 스트리밍 콜백에 전달하면서 에러 보고용 전체 캡처도 유지.
-        let stderrTask = Task<String, Never> {
-            var captured = ""
-            do {
-                for try await line in errorPipe.fileHandleForReading.bytes.lines {
-                    onStderrLine(line)
-                    captured += line + "\n"
-                }
-            } catch {}
-            return captured
-        }
-        // stdout은 -np 제거 후 세그먼트 텍스트가 개행 없이 실시간 burst로 도착하므로
-        // 라인 단위가 아닌 chunk 단위로 읽는다. readabilityHandler가 burst당 1회 호출돼
-        // MainActor 홉이 자연스럽게 코얼레싱되고, 순차 await가 청크 순서를 보장한다.
-        let stdoutHandle = outputPipe.fileHandleForReading
-        let stdoutChunks = AsyncStream<Data> { continuation in
-            stdoutHandle.readabilityHandler = { handle in
-                let data = handle.availableData
-                if data.isEmpty {
-                    handle.readabilityHandler = nil
-                    continuation.finish()
-                } else {
-                    continuation.yield(data)
-                }
-            }
-        }
-        let stdoutTask = Task<String, Never> {
-            var captured = ""
-            var pending = Data()
-            for await chunk in stdoutChunks {
-                pending.append(chunk)
-                let text = Self.consumeCompleteUTF8(&pending)
-                guard !text.isEmpty else { continue }
-                captured += text
-                if let onStdoutText {
-                    await onStdoutText(text)
-                }
-            }
-            if !pending.isEmpty {
-                captured += String(decoding: pending, as: UTF8.self)
-            }
-            return captured
-        }
-
-        var status: Int32 = -1
-        for await value in terminationStatuses {
-            status = value
-        }
-
-        let errorOutput = await stderrTask.value
-        let output = await stdoutTask.value
-
-        guard status == 0 else {
-            throw WhisperCppError.processFailed(
-                executableURL.lastPathComponent,
-                output + errorOutput
-            )
-        }
-    }
-
-    /// pending에서 완결된 UTF-8 프리픽스만 디코드해 반환하고,
-    /// 잘린 멀티바이트 꼬리(최대 3바이트)는 pending에 남긴다.
-    static func consumeCompleteUTF8(_ pending: inout Data) -> String {
-        guard !pending.isEmpty else {
-            return ""
-        }
-
-        var holdback = 0
-        let tail = [UInt8](pending.suffix(4))
-        for (offset, byte) in tail.enumerated().reversed() {
-            if byte & 0b1100_0000 == 0b1000_0000 {
-                continue
-            }
-            let expected: Int
-            switch byte {
-            case 0x00..<0x80: expected = 1
-            case 0xC0..<0xE0: expected = 2
-            case 0xE0..<0xF0: expected = 3
-            case 0xF0..<0xF8: expected = 4
-            default:          expected = 1
-            }
-            let available = tail.count - offset
-            if available < expected {
-                holdback = available
-            }
-            break
-        }
-
-        let complete = pending.prefix(pending.count - holdback)
-        let text = String(decoding: complete, as: UTF8.self)
-        pending = Data(pending.suffix(holdback))
-        return text
-    }
-
     /// "whisper_print_progress_callback: progress =  42%" → 0.42
     /// 30초 미만 클립은 100%를 초과하는 값이 나올 수 있어 0...1로 클램프한다.
     static func parseProgressFraction(from line: String) -> Double? {
@@ -349,9 +294,8 @@ struct WhisperCppTranscriptionEngine: Sendable {
         return min(max(percent, 0), 100) / 100
     }
 
-    private func validateTranscript(text: String, audioDuration: TimeInterval, jsonURL: URL) throws {
-        guard let data = try? Data(contentsOf: jsonURL),
-              let payload = try? JSONDecoder().decode(WhisperJSONOutput.self, from: data) else {
+    private func validateTranscript(text: String, audioDuration: TimeInterval, payload: WhisperJSONOutput?) throws {
+        guard let payload else {
             return
         }
 
@@ -389,6 +333,18 @@ struct WhisperCppTranscriptionEngine: Sendable {
 
 private struct WhisperJSONOutput: Decodable {
     let transcription: [WhisperJSONSegment]
+
+    /// 화자 병합용 토큰 타이밍 (offsets 없는 토큰은 제외)
+    var tokenTimings: [WhisperTokenTiming] {
+        transcription
+            .flatMap { $0.tokens ?? [] }
+            .compactMap { token in
+                guard let offsets = token.offsets else {
+                    return nil
+                }
+                return WhisperTokenTiming(text: token.text, fromMs: offsets.from, toMs: offsets.to)
+            }
+    }
 }
 
 private struct WhisperJSONSegment: Decodable {
@@ -396,8 +352,14 @@ private struct WhisperJSONSegment: Decodable {
 }
 
 private struct WhisperJSONToken: Decodable {
+    struct Offsets: Decodable {
+        let from: Int   // 밀리초
+        let to: Int
+    }
+
     let text: String
     let p: Double?
+    let offsets: Offsets?
 }
 
 enum WhisperCppError: LocalizedError {
