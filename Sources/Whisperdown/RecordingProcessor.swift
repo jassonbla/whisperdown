@@ -6,6 +6,8 @@ final class RecordingProcessor: ObservableObject {
     @Published private(set) var processingStage: TranscriptionStage?
     @Published private(set) var transcriptionProgress: Double?
     @Published private(set) var transcriptionStartedAt: Date?
+    @Published private(set) var transcriptionActivity: TranscriptionActivity?
+    @Published private(set) var partialTranscript: String?
 
     private let transcriptionEngine = TranscriptionEngine()
     private let titleExtractor = TitleExtractor()
@@ -22,6 +24,8 @@ final class RecordingProcessor: ObservableObject {
             processingStage = nil
             transcriptionProgress = nil
             transcriptionStartedAt = nil
+            transcriptionActivity = nil
+            partialTranscript = nil
         }
 
         let transcribingLabel = L10n.t("detail.badge.transcribing", AppLanguage.current)
@@ -47,12 +51,25 @@ final class RecordingProcessor: ObservableObject {
                     self?.processingStage = stage
                     if stage == .transcribing {
                         self?.transcriptionStartedAt = Date()
+                    } else {
+                        self?.transcriptionActivity = nil
                     }
                 },
                 onProgress: { [weak self] fraction in
                     guard let self else { return }
                     // 늦게 도착한 라인이 진행률을 되돌리지 않도록 단조 증가 보장
                     transcriptionProgress = max(transcriptionProgress ?? 0, fraction)
+                },
+                onActivity: { [weak self] activity in
+                    guard let self else { return }
+                    // 완료된 서브 단계는 체크 상태로 유지 — 늦은 홉이 되돌리지 않도록 단조 증가
+                    if activity.rawValue >= (transcriptionActivity?.rawValue ?? -1) {
+                        transcriptionActivity = activity
+                    }
+                },
+                onPartialText: { [weak self] text in
+                    guard let self else { return }
+                    partialTranscript = (partialTranscript ?? "") + text
                 }
             )
             let title = titleExtractor.title(from: transcript.text, fallbackDate: audio.startedAt)
@@ -93,6 +110,8 @@ final class RecordingProcessor: ObservableObject {
             processingStage = nil
             transcriptionProgress = nil
             transcriptionStartedAt = nil
+            transcriptionActivity = nil
+            partialTranscript = nil
         }
 
         var updated = recording
@@ -116,12 +135,25 @@ final class RecordingProcessor: ObservableObject {
                     self?.processingStage = stage
                     if stage == .transcribing {
                         self?.transcriptionStartedAt = Date()
+                    } else {
+                        self?.transcriptionActivity = nil
                     }
                 },
                 onProgress: { [weak self] fraction in
                     guard let self else { return }
                     // 늦게 도착한 라인이 진행률을 되돌리지 않도록 단조 증가 보장
                     transcriptionProgress = max(transcriptionProgress ?? 0, fraction)
+                },
+                onActivity: { [weak self] activity in
+                    guard let self else { return }
+                    // 완료된 서브 단계는 체크 상태로 유지 — 늦은 홉이 되돌리지 않도록 단조 증가
+                    if activity.rawValue >= (transcriptionActivity?.rawValue ?? -1) {
+                        transcriptionActivity = activity
+                    }
+                },
+                onPartialText: { [weak self] text in
+                    guard let self else { return }
+                    partialTranscript = (partialTranscript ?? "") + text
                 }
             )
             let title = titleExtractor.title(from: transcript.text, fallbackDate: audio.startedAt)

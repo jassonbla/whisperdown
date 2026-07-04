@@ -9,6 +9,8 @@ struct DetailView: View {
     let processingStage: TranscriptionStage?
     let transcriptionProgress: Double?
     let transcriptionStartedAt: Date?
+    let transcriptionActivity: TranscriptionActivity?
+    let partialTranscript: String?
     let isWhisperReady: Bool
     let elapsed: TimeInterval
     let level: Double
@@ -172,11 +174,7 @@ struct DetailView: View {
             switch recording.status {
             case .processing:
                 if isProcessing {
-                    TranscriptionStageListView(
-                currentStage: processingStage,
-                transcriptionProgress: transcriptionProgress,
-                transcriptionStartedAt: transcriptionStartedAt
-            )
+                    processingView
                 } else {
                     VStack(spacing: Spacing.md) {
                         CenterStatusView(
@@ -214,11 +212,7 @@ struct DetailView: View {
                 .padding(.top, Spacing.xs)
             }
         } else if isProcessing {
-            TranscriptionStageListView(
-                currentStage: processingStage,
-                transcriptionProgress: transcriptionProgress,
-                transcriptionStartedAt: transcriptionStartedAt
-            )
+            processingView
         } else {
             CenterStatusView(
                 systemName: "waveform.circle",
@@ -231,6 +225,23 @@ struct DetailView: View {
 
     private var liveTranscriptText: String {
         liveTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var processingView: some View {
+        VStack(spacing: Spacing.lg) {
+            TranscriptionStageListView(
+                currentStage: processingStage,
+                transcriptionProgress: transcriptionProgress,
+                transcriptionStartedAt: transcriptionStartedAt,
+                transcriptionActivity: transcriptionActivity
+            )
+
+            if let partialTranscript,
+               !partialTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                PartialTranscriptPreview(text: partialTranscript)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 240, alignment: .center)
     }
 
     private func retryButton(for recording: Recording) -> some View {
@@ -526,6 +537,7 @@ private struct TranscriptionStageListView: View {
     let currentStage: TranscriptionStage?
     let transcriptionProgress: Double?
     let transcriptionStartedAt: Date?
+    let transcriptionActivity: TranscriptionActivity?
 
     private enum RowStatus {
         case done, active, pending
@@ -538,7 +550,6 @@ private struct TranscriptionStageListView: View {
             }
         }
         .frame(maxWidth: 280, alignment: .leading)
-        .frame(maxWidth: .infinity, minHeight: 240, alignment: .center)
     }
 
     private func status(for stage: TranscriptionStage) -> RowStatus {
@@ -553,6 +564,64 @@ private struct TranscriptionStageListView: View {
         case .converting: return "stage.converting"
         case .transcribing: return "stage.transcribing"
         case .finalizing: return "stage.finalizing"
+        }
+    }
+
+    private func activityKey(for activity: TranscriptionActivity) -> String {
+        switch activity {
+        case .loadingModel: return "stage.transcribing.loadingModel"
+        case .analyzing: return "stage.transcribing.analyzing"
+        }
+    }
+
+    /// 인식(%)이 시작됐으면 두 준비 단계는 모두 완료로 본다.
+    private func activityStatus(for activity: TranscriptionActivity) -> RowStatus {
+        if transcriptionProgress != nil {
+            return .done
+        }
+        guard let transcriptionActivity else {
+            return .pending
+        }
+        if activity.rawValue < transcriptionActivity.rawValue { return .done }
+        if activity.rawValue == transcriptionActivity.rawValue { return .active }
+        return .pending
+    }
+
+    @ViewBuilder
+    private func activityRow(for activity: TranscriptionActivity) -> some View {
+        let rowStatus = activityStatus(for: activity)
+
+        HStack(spacing: Spacing.xs) {
+            Group {
+                switch rowStatus {
+                case .done:
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.success.opacity(0.75))
+                case .active:
+                    CircularProcessingIndicator()
+                case .pending:
+                    Image(systemName: "circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.tertiaryLabel)
+                }
+            }
+            .frame(width: 12, height: 12)
+
+            switch rowStatus {
+            case .done:
+                Text(L10n.t("\(activityKey(for: activity)).done", language))
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.tertiaryLabel)
+            case .active:
+                Text(L10n.t(activityKey(for: activity), language))
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.secondaryLabel)
+            case .pending:
+                Text(L10n.t(activityKey(for: activity), language))
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.tertiaryLabel.opacity(0.7))
+            }
         }
     }
 
@@ -590,11 +659,20 @@ private struct TranscriptionStageListView: View {
                     .font(Typography.emphasis)
                     .foregroundStyle(Palette.label.opacity(0.9))
 
-                    if stage == .transcribing, let transcriptionProgress {
-                        TranscriptionProgressCaption(
-                            progress: transcriptionProgress,
-                            startedAt: transcriptionStartedAt
-                        )
+                    // 서브 단계는 완료 후에도 숨기지 않고 체크 표시로 유지 —
+                    // 전사 프로세스 전체가 한눈에 읽히도록 한다. (whisper 경로에서만 신호 발생)
+                    if stage == .transcribing,
+                       transcriptionActivity != nil || transcriptionProgress != nil {
+                        ForEach(TranscriptionActivity.allCases, id: \.self) { activity in
+                            activityRow(for: activity)
+                        }
+
+                        if let transcriptionProgress {
+                            TranscriptionProgressCaption(
+                                progress: transcriptionProgress,
+                                startedAt: transcriptionStartedAt
+                            )
+                        }
                     }
                 }
             case .pending:
@@ -603,6 +681,48 @@ private struct TranscriptionStageListView: View {
                     .foregroundStyle(Palette.tertiaryLabel)
             }
         }
+    }
+}
+
+private struct PartialTranscriptPreview: View {
+    @Environment(\.appLanguage) private var language
+    let text: String
+
+    /// 마지막 문장 몇 개 분량만 보여준다 (최신 내용 항상 표시 + 높이 제한).
+    private static let tailCap = 220
+
+    private var displayText: String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > Self.tailCap else { return trimmed }
+        return "…" + trimmed.suffix(Self.tailCap)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: "text.quote")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Palette.tertiaryLabel)
+                Text(L10n.t("detail.partialTranscript.title", language))
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.tertiaryLabel)
+            }
+
+            Text(displayText)
+                .font(Typography.body)
+                .foregroundStyle(Palette.secondaryLabel)
+                .lineSpacing(4)
+                .lineLimit(4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(MotionToken.quick, value: displayText)
+        }
+        .padding(Spacing.md)
+        .background(Color.appMuted, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.hairline, lineWidth: 1)
+        }
+        .frame(maxWidth: 280, alignment: .leading)
     }
 }
 

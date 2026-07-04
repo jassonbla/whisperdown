@@ -82,6 +82,10 @@ struct DesignPreviewRootView: View {
                     processingStage: scenario.isProcessing ? .transcribing : nil,
                     transcriptionProgress: scenario.isProcessing ? 0.42 : nil,
                     transcriptionStartedAt: scenario.isProcessing ? Date().addingTimeInterval(-95) : nil,
+                    transcriptionActivity: nil,
+                    partialTranscript: scenario.isProcessing
+                        ? "안녕하세요. 오늘 회의에서는 다음 분기 로드맵과 담당자 배정을 이야기했습니다. 첫 번째 안건은 신규 온보딩 흐름 개선이었고, 두 번째 안건은 모델 다운로드 UX였습니다."
+                        : nil,
                     isWhisperReady: true,
                     elapsed: scenario.elapsed,
                     level: scenario.level,
