@@ -9,9 +9,32 @@ enum SummaryAvailability: Equatable {
     var isAvailable: Bool { self == .available }
 }
 
-/// 단발성 LLM 호출. 4k 윈도우라 세션 히스토리를 재사용하지 않는다 — 호출마다 새 세션.
+/// 단발성 LLM 호출. 세션 히스토리를 재사용하지 않는다 — 호출마다 새 세션/프로세스.
 protocol SummaryBackend: Sendable {
     func respond(instructions: String, prompt: String) async throws -> String
+    /// 이 백엔드가 한 번에 받을 수 있는 전사본 예산(자). 크면 청커가 1청크를 만들어
+    /// 기존 단일 패스 분기가 자동 작동한다 — map-reduce 코드는 그대로.
+    var contextCharBudget: Int { get }
+    var glossaryCharBudget: Int { get }
+}
+
+extension SummaryBackend {
+    var contextCharBudget: Int { SummaryEngine.chunkCharBudget }
+    var glossaryCharBudget: Int { SummaryEngine.glossaryCharBudget }
+}
+
+/// 요약 엔진 선택 (Settings). 비-View 레이어는 `current`로 읽는다 (AppLanguage.current 패턴).
+enum SummaryBackendKind: String {
+    case apple
+    case local
+
+    static var current: SummaryBackendKind {
+        SummaryBackendKind(rawValue: UserDefaults.standard.string(forKey: "summaryBackend") ?? "apple") ?? .apple
+    }
+
+    static var selectedModelFileName: String? {
+        UserDefaults.standard.string(forKey: "summaryModelFileName")
+    }
 }
 
 enum SummaryEngineError: LocalizedError {
@@ -37,7 +60,8 @@ struct SummaryEngine: Sendable {
     static let glossaryCharBudget = 1_200
     static let chunkCharBudget = 2_000
 
-    static func availability() -> SummaryAvailability {
+    /// Apple 온디바이스 모델 가용성 (엔진 선택 UI의 Apple 행 배지용).
+    static func appleAvailability() -> SummaryAvailability {
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
             return FoundationModelsSummaryBackend.availability()
@@ -46,7 +70,24 @@ struct SummaryEngine: Sendable {
         return .unsupportedOS
     }
 
+    /// 선택된 엔진 기준의 실효 가용성. 로컬 선택인데 준비 안 됐으면 Apple로 강등 —
+    /// makeBackend()의 조용한 폴백과 동일한 순서.
+    static func effectiveAvailability() -> SummaryAvailability {
+        if SummaryBackendKind.current == .local,
+           LlamaSummaryEngine.availability(modelFileName: SummaryBackendKind.selectedModelFileName).isAvailable {
+            return .available
+        }
+        return appleAvailability()
+    }
+
     private static func makeBackend() -> (any SummaryBackend)? {
+        if SummaryBackendKind.current == .local,
+           let fileName = SummaryBackendKind.selectedModelFileName,
+           let cliURL = LlamaSummaryEngine.cliURL,
+           let modelURL = LlamaSummaryEngine.modelURL(fileName: fileName) {
+            return LlamaCppSummaryBackend(cliURL: cliURL, modelURL: modelURL)
+        }
+
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *), FoundationModelsSummaryBackend.availability().isAvailable {
             return FoundationModelsSummaryBackend()
@@ -61,8 +102,8 @@ struct SummaryEngine: Sendable {
             throw SummaryEngineError.unavailable
         }
 
-        let instructions = SummaryPromptBuilder.instructions(glossary: glossary)
-        let chunks = TranscriptChunker.chunks(segments: segments, transcript: transcript, budget: Self.chunkCharBudget)
+        let instructions = SummaryPromptBuilder.instructions(glossary: glossary, limit: backend.glossaryCharBudget)
+        let chunks = TranscriptChunker.chunks(segments: segments, transcript: transcript, budget: backend.contextCharBudget)
         guard !chunks.isEmpty else {
             throw SummaryEngineError.emptyTranscript
         }
@@ -99,7 +140,7 @@ struct SummaryEngine: Sendable {
 
         // REDUCE — 부분 요약이 다시 예산을 넘으면 5개 그룹으로 1단계 선축약
         var joined = partials.joined(separator: "\n")
-        while joined.count > Self.chunkCharBudget, partials.count > 1 {
+        while joined.count > backend.contextCharBudget, partials.count > 1 {
             try Task.checkCancellation()
             var condensed: [String] = []
             for group in stride(from: 0, to: partials.count, by: 5).map({ Array(partials[$0..<min($0 + 5, partials.count)]) }) {
@@ -285,10 +326,10 @@ enum TranscriptChunker {
 }
 
 enum SummaryPromptBuilder {
-    static func instructions(glossary: String?) -> String {
+    static func instructions(glossary: String?, limit: Int = SummaryEngine.glossaryCharBudget) -> String {
         let glossaryBlock: String
         if let glossary, !glossary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            glossaryBlock = truncatedAtLineBoundary(glossary, limit: SummaryEngine.glossaryCharBudget)
+            glossaryBlock = truncatedAtLineBoundary(glossary, limit: limit)
         } else {
             glossaryBlock = "(없음)"
         }

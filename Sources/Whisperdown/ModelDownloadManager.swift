@@ -36,9 +36,9 @@ final class ModelDownloadManager: NSObject, ObservableObject {
         refreshInstalled()
     }
 
-    /// 전체 다운로드 가능 항목 (whisper 모델 + 화자 분리 자산). delegate 콜백에서도 조회하므로 nonisolated.
+    /// 전체 다운로드 가능 항목 (whisper 모델 + 화자 분리 자산 + 요약 사이드카). delegate 콜백에서도 조회하므로 nonisolated.
     nonisolated static var allItems: [DownloadableItem] {
-        ModelCatalog.all.map(\.downloadItem) + DiarizationCatalog.all
+        ModelCatalog.all.map(\.downloadItem) + DiarizationCatalog.all + SummaryModelCatalog.allDownloadItems
     }
 
     func state(for model: WhisperModel) -> DownloadState {
@@ -284,7 +284,44 @@ extension ModelDownloadManager: URLSessionDownloadDelegate {
                     with: source
                 )
             }
+
+        case .summaryModel:
+            // GGUF 매직 "GGUF"
+            guard hasMagic(location, [0x47, 0x47, 0x55, 0x46]) else {
+                try? fileManager.removeItem(at: location)
+                return .failure(.invalidFormat)
+            }
+            return install(from: location, to: item.installedProbeURL)
+
+        case .summaryRuntime:
+            // gzip 매직 (릴리스 자산은 tar.gz — llama-cli와 dylib이 형제인 평면 디렉토리)
+            guard hasMagic(location, [0x1F, 0x8B]) else {
+                try? fileManager.removeItem(at: location)
+                return .failure(.invalidFormat)
+            }
+            return extractAndInstall(archive: location, tarFlags: "-xzf") { staging in
+                // 레이아웃 드리프트에 견고하도록 llama-completion을 포함한 디렉토리를 탐색해 통째로 이동
+                // (dylib rpath가 형제 참조라 디렉토리 단위 이동이 필수).
+                guard let binDir = directoryContaining(executable: "llama-completion", under: staging) else {
+                    throw ModelDownloadError.extractFailed("llama-completion not found in archive")
+                }
+                try replaceItem(
+                    at: LlamaSummaryEngine.runtimeDirectory.appendingPathComponent("bin"),
+                    with: binDir
+                )
+            }
         }
+    }
+
+    private nonisolated static func directoryContaining(executable name: String, under root: URL) -> URL? {
+        let fileManager = FileManager.default
+        guard let enumerator = fileManager.enumerator(at: root, includingPropertiesForKeys: nil) else {
+            return nil
+        }
+        for case let url as URL in enumerator where url.lastPathComponent == name {
+            return url.deletingLastPathComponent()
+        }
+        return nil
     }
 
     private nonisolated static func hasMagic(_ url: URL, _ bytes: [UInt8]) -> Bool {
@@ -314,10 +351,11 @@ extension ModelDownloadManager: URLSessionDownloadDelegate {
         }
     }
 
-    /// tar.bz2를 스테이징에 추출 후 place 클로저로 배치. URLSession delegate 큐(비메인)에서
-    /// 동기 실행되므로 waitUntilExit가 안전하다.
+    /// 압축 아카이브를 스테이징에 추출 후 place 클로저로 배치. URLSession delegate 큐(비메인)에서
+    /// 동기 실행되므로 waitUntilExit가 안전하다. tarFlags: bzip2는 "-xjf", gzip은 "-xzf".
     private nonisolated static func extractAndInstall(
         archive: URL,
+        tarFlags: String = "-xjf",
         place: (URL) throws -> Void
     ) -> Result<Void, ModelDownloadError> {
         let fileManager = FileManager.default
@@ -333,7 +371,7 @@ extension ModelDownloadManager: URLSessionDownloadDelegate {
 
             let tar = Process()
             tar.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
-            tar.arguments = ["-xjf", archive.path, "-C", staging.path]
+            tar.arguments = [tarFlags, archive.path, "-C", staging.path]
             tar.standardOutput = FileHandle.nullDevice
             tar.standardError = FileHandle.nullDevice
             try tar.run()

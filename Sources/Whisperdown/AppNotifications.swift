@@ -14,4 +14,6 @@ extension Notification.Name {
     static let openGlossaryRequested = Notification.Name("openGlossaryRequested")
     /// 상세 topBar의 책 아이콘 — RootView가 수신해 용어집 패널을 토글한다.
     static let toggleGlossaryPanelRequested = Notification.Name("toggleGlossaryPanelRequested")
+    /// Settings에서 요약 엔진/모델 선택 변경 — RootView가 수신해 가용성 재계산.
+    static let summaryBackendChanged = Notification.Name("summaryBackendChanged")
 }

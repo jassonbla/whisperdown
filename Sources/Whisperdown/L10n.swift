@@ -240,9 +240,33 @@ enum L10n {
         "summary.failed": [.en: "Summary failed — you can try again.", .ko: "요약 생성에 실패했습니다 — 다시 시도할 수 있습니다."],
         "summary.section.title": [.en: "AI Summary (Optional)", .ko: "AI 요약 (선택)"],
         "summary.section.subtitle": [
-            .en: "Summarizes each recording on-device with Apple's local model and fills the summary section of the Markdown file. A glossary you edit corrects misheard terms.",
-            .ko: "Apple 온디바이스 모델로 녹음을 요약해 Markdown의 요약 섹션을 채웁니다. 직접 편집하는 용어집으로 잘못 인식된 용어를 바로잡습니다."
+            .en: "Summarizes each recording fully on-device and fills the summary section of the Markdown file. A glossary you edit corrects misheard terms.",
+            .ko: "녹음을 온디바이스에서 요약해 Markdown의 요약 섹션을 채웁니다. 직접 편집하는 용어집으로 잘못 인식된 용어를 바로잡습니다."
         ],
+        "summary.engine.apple": [.en: "Apple Intelligence", .ko: "Apple Intelligence"],
+        "summary.engine.apple.detail": [.en: "Built into macOS · No download needed", .ko: "macOS 내장 · 다운로드 불필요"],
+        "summary.model.detail.e4b": [
+            .en: "Balanced · Fast on most Macs",
+            .ko: "균형형 · 대부분의 Mac에서 빠름"
+        ],
+        "summary.model.detail.12b": [
+            .en: "Higher quality summaries",
+            .ko: "더 높은 요약 품질"
+        ],
+        "summary.model.detail.26b": [
+            .en: "Best quality · MoE, fast for its size",
+            .ko: "최고 품질 · MoE 구조로 크기 대비 빠름"
+        ],
+        "summary.model.badge.recommended": [.en: "Recommended", .ko: "추천"],
+        "summary.model.badge.maySlow": [.en: "May be slow", .ko: "느릴 수 있음"],
+        "summary.model.badge.insufficient": [.en: "Not enough memory", .ko: "메모리 부족"],
+        "summary.model.ram": [.en: "Needs %@+ · This Mac %@", .ko: "권장 %@+ · 이 Mac %@"],
+        "summary.model.context": [.en: "%@ context", .ko: "%@ 컨텍스트"],
+        "summary.model.remove": [.en: "Remove", .ko: "제거"],
+        "summary.runtime.installed": [.en: "llama.cpp %@ installed", .ko: "llama.cpp %@ 설치됨"],
+        "summary.runtime.removeAll": [.en: "Remove All", .ko: "전체 제거"],
+        "summary.error.timeout": [.en: "Summary timed out.", .ko: "요약 생성 시간이 초과되었습니다."],
+        "summary.error.processFailed": [.en: "Local model failed: %@", .ko: "로컬 모델 실행 실패: %@"],
         "summary.status.label": [.en: "On-device model", .ko: "온디바이스 모델"],
         "summary.status.available": [.en: "Available", .ko: "사용 가능"],
         "summary.status.unsupportedOS": [.en: "Requires macOS 26 or later", .ko: "macOS 26 이상 필요"],

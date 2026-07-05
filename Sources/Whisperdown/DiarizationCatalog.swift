@@ -8,6 +8,8 @@ struct DownloadableItem: Identifiable, Sendable, Equatable {
         case diarizationRuntime            // BZh 매직 → tar 추출 → bin/ + lib/ 이동
         case diarizationSegmentationModel  // BZh 매직 → tar 추출 → model.onnx 평탄화 이동
         case diarizationEmbeddingModel     // ≥98% 크기 → .onnx 그대로 이동
+        case summaryModel                  // GGUF 매직 → Summary/Models/ 그대로 이동
+        case summaryRuntime                // gzip 매직 → tar 추출 → llama-cli 디렉토리를 bin/으로 이동
     }
 
     let kind: Kind
