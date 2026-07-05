@@ -76,7 +76,13 @@ struct WhisperCppTranscriptionEngine: Sendable {
             "-pp"
         ]
 
-        if !usesGPU {
+        if usesGPU {
+            // Metal 경로 하드닝 (47분 실녹음 실측): 기본 플래그의 GPU 디코드는 15분 지점부터
+            // 반복 루프에 빠져 이후 32분을 통째로 날렸다 (동일 문장 1,389회). flash-attn을 꺼도
+            // 재발했고, 엔트로피 임계값을 2.4→2.8로 올리자(반복=저엔트로피 출력 시 온도 폴백 강제)
+            // 전 구간 무결 + 2회 재실행 바이트 동일. GPU는 이 플래그와 함께만 신뢰할 수 있다.
+            whisperArguments.append(contentsOf: ["-et", "2.8"])
+        } else {
             whisperArguments.append("--no-gpu")
         }
 

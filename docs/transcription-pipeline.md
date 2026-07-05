@@ -32,7 +32,7 @@ Whisper is an encoder–decoder transformer. The **encoder** turns 30-second aud
 - The progress percent (parsed from `-pp` stderr output) advances **once per 30-second chunk** — that is the encoder's work unit. Clips under 30 s emit a single value at the very end, which can exceed 100 % (a known whisper.cpp quirk; the parser clamps to 0...1).
 - The token probability (`p`) used by the hallucination filter is the decoder's per-token confidence.
 
-GPU (Metal) is opt-in via `WHISPERDOWN_WHISPER_GPU=1`; the default is CPU safe mode because the Homebrew Metal backend can crash on some Apple Silicon/model combinations.
+GPU (Metal) is opt-in via `WHISPERDOWN_WHISPER_GPU=1`; the default is CPU safe mode. Measured on a real 47-minute recording (M4 Pro, large-v3-turbo): default-flag GPU decoding entered a repetition loop at the 15-minute mark and destroyed the rest of the transcript, so when GPU is enabled the engine also passes `-et 2.8` (a stricter entropy threshold that forces the decoder's temperature fallback on repetitive output) — with that flag, GPU runs were fully intact, reproducible, and 8.4× faster than CPU (2.5 min vs 21.5 min).
 
 ### Apple Speech's two jobs
 

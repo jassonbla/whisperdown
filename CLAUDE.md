@@ -40,7 +40,7 @@ Scenario data lives in `DesignPreview.swift` (`DesignPreviewData`); it construct
 
 - Binary lookup order: `WHISPERDOWN_WHISPER_CLI` env → bundle → `/opt/homebrew/bin` → `/usr/local/bin`. Same idea for ffmpeg/model (`WHISPERDOWN_FFMPEG`, `WHISPERDOWN_WHISPER_MODEL`).
 - Models live in `~/Library/Application Support/Whisperdown/Models/` (shared with `ModelDownloadManager`); preference order large-v3-turbo → large-v3 → medium → small → base.
-- GPU is **opt-in** via `WHISPERDOWN_WHISPER_GPU=1`; otherwise `--no-gpu` (CPU safe mode).
+- GPU is **opt-in** via `WHISPERDOWN_WHISPER_GPU=1`; otherwise `--no-gpu` (CPU safe mode). **When GPU is on, the engine MUST pass `-et 2.8`** — measured on a real 47-min recording: default-flag Metal decoding fell into a repetition loop at the 15-min mark and destroyed the remaining 32 minutes (same sentence 1,389×); disabling flash-attn didn't fix it, raising the entropy threshold 2.4→2.8 did (verified twice, byte-identical output, 2.5 min vs 21.5 min CPU — 8.4× faster).
 - Progress: `-pp` prints `whisper_print_progress_callback: progress =  NN%` to **stderr**, once per 30-second audio chunk, and works alongside `-np`. Quirk: clips under 30s can emit a single value **over 100%** (observed 375%) — always clamp to 0...1. Short recordings therefore show no mid-flight percent; that's expected.
 - `run()` streams both pipes concurrently with `bytes.lines` (prevents 64KB pipe-buffer deadlock) while accumulating full output for `WhisperCppError.processFailed`.
 
