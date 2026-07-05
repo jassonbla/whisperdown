@@ -94,15 +94,17 @@ Scripts/install-diarization.sh
 5. Run diarization with a local sidecar.
 6. Merge word/segment timestamps with speaker turns.
 7. Let the user rename speakers and persist mappings.
-8. Generate `{yyyy-MM-dd}_{title}_추출.md`.
+8. Generate `{yyyy-MM-dd}_{title}.md` with YAML front matter (machine-readable metadata for downstream agents).
 
 ## Storage Layout
 
 ```text
 Whisperdown/
-  2026-07-02_리더십 미팅_추출.md
+  2026-07-02_리더십 미팅.md
   Recordings/
-    2026-07-02_recording.m4a
+    2026-07-02_recording.caf
   .whisperdown/
     index.json
 ```
+
+Each Markdown file starts with YAML front matter (`whisperdown: 1`, title, created, duration, audio path, engine, speaker count, status) so other tools and agents can parse recordings without reading the app's index.

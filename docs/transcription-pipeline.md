@@ -75,7 +75,9 @@ The transcript text that lands in the Markdown file is **whisper's raw output**,
 
 1. `transcript.txt` is read and trimmed of leading/trailing whitespace — the only transformation applied, ever.
 2. `validateTranscript` is a **gate, not an editor**: it throws (→ `.failed` status) on empty output or low-confidence hallucination phrases. It never modifies content.
-3. `MarkdownWriter.render` is pure templating: it wraps the text in a fixed skeleton (title, date/duration/engine metadata, `## 전사` section with speaker headers). No punctuation fixes, no paragraph splitting, no spacing normalization.
+3. `MarkdownWriter.render` is pure templating: it wraps the text in a fixed skeleton (YAML front matter, title, date/duration/engine metadata, `## 전사` section with speaker headers). No punctuation fixes, no paragraph splitting, no spacing normalization.
+
+The YAML front matter (`whisperdown: 1`, title, created, duration, audio, engine, speakers, status, generator) is a machine-readable metadata layer for downstream agents reading the output folder. Existing files are migrated once on launch by prepending front matter — the body is never rewritten, so manual edits survive (`RecordingStore.migrateFrontMatterIfNeeded`, idempotent via the `---` prefix check).
 
 One deliberate hook exists for future post-processing: every saved file contains a `## 요약` placeholder section ("자동 요약은 다음 단계에서 연결됩니다") — reserved for an automatic summary step that is not yet implemented.
 

@@ -4,6 +4,11 @@ import SwiftUI
 struct WhisperdownApp: App {
     @AppStorage("appLanguage") private var appLanguageRaw = AppLanguage.en.rawValue
 
+    init() {
+        // 아이콘 전용 버튼의 .help 툴팁이 빨리 뜨도록 macOS 기본 지연(~1.5s)을 줄인다.
+        UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 350])
+    }
+
     private var language: AppLanguage {
         AppLanguage(rawValue: appLanguageRaw) ?? .en
     }

@@ -2,6 +2,33 @@ import Foundation
 
 struct MarkdownWriter {
     func render(recording: Recording) -> String {
+        frontMatter(recording: recording) + "\n" + body(recording: recording)
+    }
+
+    /// YAML front matter — 다른 에이전트가 파싱하는 기계용 메타데이터 레이어.
+    /// `whisperdown: 1`은 스키마 버전이자 기존 파일 마이그레이션 마커.
+    func frontMatter(recording: Recording) -> String {
+        let audioRelativePath = "Recordings/\(recording.audioURL.lastPathComponent)"
+        let speakerCount = Set(recording.segments.map(\.speaker)).count
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+
+        return """
+        ---
+        whisperdown: 1
+        title: \(yamlQuoted(recording.title))
+        created: \(AppFormatters.iso8601.string(from: recording.createdAt))
+        duration: \(Int(recording.duration.rounded()))
+        audio: \(yamlQuoted(audioRelativePath))
+        engine: \(yamlQuoted(recording.engineNote))
+        speakers: \(speakerCount)
+        status: \(recording.status.rawValue)
+        generator: \(yamlQuoted("Whisperdown \(version)"))
+        ---
+
+        """
+    }
+
+    private func body(recording: Recording) -> String {
         let audioRelativePath = "Recordings/\(recording.audioURL.lastPathComponent)"
         let transcriptBody: String
         if recording.status == .failed {
@@ -36,5 +63,13 @@ struct MarkdownWriter {
 
         \(segment.text)
         """
+    }
+
+    private func yamlQuoted(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+        return "\"\(escaped)\""
     }
 }

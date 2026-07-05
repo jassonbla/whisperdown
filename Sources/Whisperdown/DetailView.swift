@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct DetailView: View {
@@ -27,6 +28,15 @@ struct DetailView: View {
     let onRetryTranscription: (Recording) -> Void
     let onOpenFolder: () -> Void
     let onChooseFolder: () -> Void
+    /// 스냅샷 시나리오용 초기값 — 런타임 토글은 rawMarkdownOverride가 담당.
+    var initialShowsRawMarkdown: Bool = false
+
+    @State private var rawMarkdownOverride: Bool?
+    @State private var didCopyMarkdown = false
+
+    private var showsRawMarkdown: Bool {
+        rawMarkdownOverride ?? initialShowsRawMarkdown
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -50,6 +60,10 @@ struct DetailView: View {
             transport
         }
         .background(Color.appSurface)
+        .onChange(of: recording?.id) {
+            rawMarkdownOverride = nil
+            didCopyMarkdown = false
+        }
     }
 
     private var topBar: some View {
@@ -66,6 +80,24 @@ struct DetailView: View {
 
             HStack(spacing: Spacing.xs) {
                 if let recording, recording.status == .ready, !isRecording, !isProcessing {
+                    IconButton(
+                        systemName: showsRawMarkdown ? "text.bubble" : "doc.plaintext",
+                        isActive: showsRawMarkdown
+                    ) {
+                        rawMarkdownOverride = !showsRawMarkdown
+                    }
+                    .help(L10n.t(showsRawMarkdown ? "detail.help.showSegments" : "detail.help.showRawMarkdown", language))
+
+                    IconButton(systemName: didCopyMarkdown ? "checkmark" : "doc.on.doc") {
+                        copyMarkdown(for: recording)
+                    }
+                    .help(L10n.t(didCopyMarkdown ? "detail.help.copied" : "detail.help.copyMarkdown", language))
+
+                    IconButton(systemName: "arrow.up.right.square") {
+                        revealInFinder(for: recording)
+                    }
+                    .help(L10n.t("detail.help.revealInFinder", language))
+
                     IconButton(systemName: "arrow.clockwise") {
                         onRetryTranscription(recording)
                     }
@@ -139,12 +171,27 @@ struct DetailView: View {
         if isRecording {
             RecordingTitle(title: L10n.t("detail.badge.recording", language), subtitle: AppFormatters.duration(elapsed))
         } else if let recording {
-            RecordingTitle(
-                title: recording.title,
-                subtitle: "\(AppFormatters.displayDate.string(from: recording.createdAt))  \(AppFormatters.duration(recording.duration))"
-            )
+            recordingTitle(for: recording)
         } else {
             RecordingTitle(title: "Whisperdown", subtitle: "00:00")
+        }
+    }
+
+    /// 제목 영역이 md 파일의 드래그 소스 — 파일이 실제로 존재할 때만 활성화된다
+    /// (DesignPreview의 가짜 경로는 자연 비활성).
+    @ViewBuilder
+    private func recordingTitle(for recording: Recording) -> some View {
+        let title = RecordingTitle(
+            title: recording.title,
+            subtitle: "\(AppFormatters.displayDate.string(from: recording.createdAt))  \(AppFormatters.duration(recording.duration))"
+        )
+
+        if recording.status == .ready, FileManager.default.fileExists(atPath: recording.markdownURL.path) {
+            title
+                .onDrag { NSItemProvider(contentsOf: recording.markdownURL) ?? NSItemProvider() }
+                .help(L10n.t("detail.help.dragMarkdown", language))
+        } else {
+            title
         }
     }
 
@@ -211,13 +258,20 @@ struct DetailView: View {
                 .frame(maxWidth: .infinity, minHeight: 280)
 
             case .ready:
-                VStack(alignment: .leading, spacing: Spacing.lg) {
-                    ForEach(recording.segments) { segment in
-                        TranscriptSegmentView(segment: segment)
+                if showsRawMarkdown {
+                    MarkdownPreview(content: markdownContent(for: recording))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: AppMetric.transcriptMaxWidth, alignment: .leading)
+                        .padding(.top, Spacing.xs)
+                } else {
+                    VStack(alignment: .leading, spacing: Spacing.lg) {
+                        ForEach(recording.segments) { segment in
+                            TranscriptSegmentView(segment: segment)
+                        }
                     }
+                    .frame(maxWidth: AppMetric.transcriptMaxWidth, alignment: .leading)
+                    .padding(.top, Spacing.xs)
                 }
-                .frame(maxWidth: AppMetric.transcriptMaxWidth, alignment: .leading)
-                .padding(.top, Spacing.xs)
             }
         } else if isProcessing {
             processingView
@@ -257,6 +311,37 @@ struct DetailView: View {
         .frame(maxWidth: .infinity, minHeight: 240, alignment: .topLeading)
     }
 
+    /// 원본 보기/복사의 소스는 디스크의 실제 파일 — 사용자의 수동 편집이 그대로 반영된다.
+    /// 파일이 없을 때만(프리뷰 가짜 경로, 외부 삭제) 렌더링으로 폴백.
+    private func markdownContent(for recording: Recording) -> String {
+        (try? String(contentsOf: recording.markdownURL, encoding: .utf8))
+            ?? MarkdownWriter().render(recording: recording)
+    }
+
+    private func copyMarkdown(for recording: Recording) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(markdownContent(for: recording), forType: .string)
+
+        withAnimation(MotionToken.quick) {
+            didCopyMarkdown = true
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            withAnimation(MotionToken.quick) {
+                didCopyMarkdown = false
+            }
+        }
+    }
+
+    private func revealInFinder(for recording: Recording) {
+        if FileManager.default.fileExists(atPath: recording.markdownURL.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([recording.markdownURL])
+        } else {
+            NSWorkspace.shared.open(recording.markdownURL.deletingLastPathComponent())
+        }
+    }
+
     private func retryButton(for recording: Recording) -> some View {
         Button {
             onRetryTranscription(recording)
@@ -291,8 +376,8 @@ struct DetailView: View {
                 onSeekForward: onSeekForward
             )
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Spacing.lg)
-            .padding(.vertical, Spacing.lg)
+            .padding(.horizontal, AppLayout.detailHorizontalPadding)
+            .padding(.vertical, Spacing.sm)
             .overlay(alignment: .top) {
                 Rectangle()
                     .fill(Color.hairline)
@@ -319,8 +404,8 @@ struct DetailView: View {
                 onSeekForward: onSeekForward
             )
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Spacing.lg)
-            .padding(.vertical, Spacing.lg)
+            .padding(.horizontal, AppLayout.detailHorizontalPadding)
+            .padding(.vertical, Spacing.sm)
             .overlay(alignment: .top) {
                 Rectangle()
                     .fill(Color.hairline)
@@ -438,14 +523,8 @@ private struct TransportDeck: View {
             )
             .opacity(isTransportAvailable ? 1 : 0.54)
         }
-        .padding(.horizontal, Spacing.lg)
         .frame(maxWidth: .infinity)
         .frame(height: AppMetric.transportCardHeight)
-        .background(Color.appMuted, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.hairline, lineWidth: 1)
-        }
     }
 
     private var timeColor: Color {
@@ -528,9 +607,9 @@ private struct TransportIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(Palette.secondaryLabel)
-                .frame(width: 32, height: 32)
+                .frame(width: 36, height: 36)
                 .background(
                     isHovering && !isDisabled ? Color.controlSurface.opacity(0.56) : Color.clear,
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous)
