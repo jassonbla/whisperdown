@@ -40,6 +40,7 @@ enum L10n {
         "menu.newRecording": [.en: "New Recording / Stop Recording", .ko: "새 녹음 / 녹음 정지"],
         "menu.search": [.en: "Search", .ko: "검색"],
         "menu.openMarkdownFolder": [.en: "Open Markdown Folder", .ko: "Markdown 폴더 열기"],
+        "menu.settings": [.en: "Settings...", .ko: "설정..."],
 
         // MARK: Alerts (RootView)
         "alert.deleteRecording.title": [.en: "Delete Recording", .ko: "녹음 삭제"],
@@ -83,6 +84,8 @@ enum L10n {
         ],
         "onboarding.diagnostics.skip": [.en: "Skip", .ko: "건너뛰기"],
         "onboarding.diagnostics.next": [.en: "Next: Choose Model", .ko: "다음: 모델 선택"],
+        "onboarding.diagnostics.close": [.en: "Close", .ko: "닫기"],
+        "onboarding.diagnostics.changeModel": [.en: "Change Model", .ko: "모델 변경"],
         "onboarding.modelPicker.title": [.en: "Download Transcription Model", .ko: "전사 모델 다운로드"],
         "onboarding.modelPicker.subtitle": [
             .en: "Models are stored on this Mac and work offline. You can change this later in Settings (⌘,).",
@@ -328,6 +331,22 @@ enum L10n {
         "error.engine.lowConfidence": [
             .en: "Transcription confidence was too low to mark complete. Detected phrase: %@",
             .ko: "전사 결과 신뢰도가 낮아 완료 처리하지 않았습니다. 감지된 문구: %@"
+        ],
+        "error.engine.repetitionLoop": [
+            .en: "Transcription entered a repetition loop and was stopped (repeated phrase: %@). Please retry.",
+            .ko: "전사가 반복 루프에 빠져 중단했습니다 (반복 문구: %@). 다시 시도해 주세요."
+        ],
+        "error.engine.speechAnalyzer.localeNotInstalled": [
+            .en: "The on-device Korean speech model is not installed.",
+            .ko: "온디바이스 한국어 음성 모델이 설치되어 있지 않습니다."
+        ],
+        "error.engine.speechAnalyzer.empty": [
+            .en: "SpeechAnalyzer produced an empty transcript.",
+            .ko: "SpeechAnalyzer 전사 결과가 비어 있습니다."
+        ],
+        "error.engine.speechAnalyzer.failed": [
+            .en: "SpeechAnalyzer failed: %@",
+            .ko: "SpeechAnalyzer 전사에 실패했습니다: %@"
         ],
         "error.engine.processLaunchFailed": [
             .en: "Failed to launch %@: %@",

@@ -34,6 +34,7 @@ struct OnboardingSheet: View {
             content
         }
         .frame(width: 480)
+        .frame(maxHeight: 680)
         .background(Palette.bg1)
         .onChange(of: manager.states) {
             engineStatus = WhisperCppTranscriptionEngine().status()
@@ -92,45 +93,71 @@ struct OnboardingSheet: View {
     // MARK: - Step 2: 진단
 
     private var diagnostics: some View {
-        VStack(alignment: .leading, spacing: Spacing.lg) {
+        VStack(alignment: .leading, spacing: 0) {
             sheetHeader(
                 title: L10n.t("onboarding.diagnostics.title", language),
                 subtitle: L10n.t("onboarding.diagnostics.subtitle", language)
             )
+            .padding(.bottom, Spacing.lg)
 
-            EngineDiagnosticsView(status: engineStatus) {
-                engineStatus = WhisperCppTranscriptionEngine().status()
-            }
-            .padding(.horizontal, Spacing.xl)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    EngineDiagnosticsView(status: engineStatus) {
+                        engineStatus = WhisperCppTranscriptionEngine().status()
+                    }
 
-            if !(engineStatus.whisperCLI.isFound && engineStatus.ffmpeg.isFound) {
-                Text(L10n.t("onboarding.diagnostics.appleSpeechNote", language))
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.tertiaryLabel)
-                    .padding(.horizontal, Spacing.xl)
+                    if !(engineStatus.whisperCLI.isFound && engineStatus.ffmpeg.isFound) {
+                        Text(L10n.t("onboarding.diagnostics.appleSpeechNote", language))
+                            .font(Typography.caption)
+                            .foregroundStyle(Palette.tertiaryLabel)
+                    }
+                }
+                .padding(.horizontal, Spacing.xl)
             }
 
             sheetFooter {
                 if initialStep == .welcome {
+                    // 최초 실행 온보딩: welcome → diagnostics → modelPicker 선형 흐름 유지
                     Button(L10n.t("onboarding.diagnostics.skip", language)) { finish() }
                         .buttonStyle(.plain)
                         .font(Typography.body)
                         .foregroundStyle(Palette.secondaryLabel)
-                }
 
-                Spacer()
+                    Spacer()
 
-                Button {
-                    step = .modelPicker
-                } label: {
-                    Text(L10n.t("onboarding.diagnostics.next", language))
-                        .font(Typography.emphasis)
-                        .foregroundStyle(Palette.primaryForeground)
-                        .padding(.horizontal, Spacing.lg)
-                        .frame(height: 30)
-                        .background(Palette.primary, in: Capsule())
+                    Button {
+                        step = .modelPicker
+                    } label: {
+                        Text(L10n.t("onboarding.diagnostics.next", language))
+                            .font(Typography.emphasis)
+                            .foregroundStyle(Palette.primaryForeground)
+                            .padding(.horizontal, Spacing.lg)
+                            .frame(height: 30)
+                            .background(Palette.primary, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    // Settings에서 상태 확인 목적으로 직접 진입한 경우: 확인만 하고 닫을 수 있어야 한다 —
+                    // 모델 변경은 원할 때만 별도 버튼으로 분리.
+                    Button(L10n.t("onboarding.diagnostics.close", language)) { finish() }
+                        .buttonStyle(.plain)
+                        .font(Typography.body)
+                        .foregroundStyle(Palette.secondaryLabel)
+
+                    Spacer()
+
+                    Button {
+                        step = .modelPicker
+                    } label: {
+                        Text(L10n.t("onboarding.diagnostics.changeModel", language))
+                            .font(Typography.emphasis)
+                            .foregroundStyle(Palette.primaryForeground)
+                            .padding(.horizontal, Spacing.lg)
+                            .frame(height: 30)
+                            .background(Palette.primary, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(.vertical, Spacing.xl)
@@ -139,20 +166,23 @@ struct OnboardingSheet: View {
     // MARK: - Step 3: 모델 선택
 
     private var modelPicker: some View {
-        VStack(alignment: .leading, spacing: Spacing.lg) {
+        VStack(alignment: .leading, spacing: 0) {
             sheetHeader(
                 title: L10n.t("onboarding.modelPicker.title", language),
                 subtitle: L10n.t("onboarding.modelPicker.subtitle", language)
             )
+            .padding(.bottom, Spacing.lg)
 
-            ModelListView(manager: manager)
-                .padding(.horizontal, Spacing.xl)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    ModelListView(manager: manager)
 
-            DiarizationSetupView(manager: manager)
-                .padding(.horizontal, Spacing.xl)
+                    DiarizationSetupView(manager: manager)
 
-            SummarySetupView(manager: manager)
+                    SummarySetupView(manager: manager)
+                }
                 .padding(.horizontal, Spacing.xl)
+            }
 
             sheetFooter {
                 Button(L10n.t("onboarding.modelPicker.back", language)) { step = .diagnostics }
