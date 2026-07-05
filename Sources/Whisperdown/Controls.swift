@@ -12,6 +12,7 @@ struct QuietButtonStyle: ButtonStyle {
 
 struct IconButton: View {
     let systemName: String
+    var isActive: Bool = false
     let action: () -> Void
 
     @State private var isHovering = false
@@ -20,10 +21,10 @@ struct IconButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(Typography.emphasis)
-                .foregroundStyle(Palette.secondaryLabel)
+                .foregroundStyle(isActive ? Palette.label : Palette.secondaryLabel)
                 .frame(width: AppMetric.iconButtonSize, height: AppMetric.iconButtonSize)
                 .background(
-                    isHovering ? Color.controlSurface.opacity(0.86) : Color.clear,
+                    isActive || isHovering ? Color.controlSurface.opacity(0.86) : Color.clear,
                     in: Circle()
                 )
                 .animation(MotionToken.quick, value: isHovering)

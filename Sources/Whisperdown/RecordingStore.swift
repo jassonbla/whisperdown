@@ -123,7 +123,7 @@ final class RecordingStore: ObservableObject {
     }
 
     func uniqueMarkdownURL(for date: Date, title: String) -> URL {
-        let base = "\(AppFormatters.fileDate.string(from: date))_\(title.markdownFilenameSafe)_추출"
+        let base = "\(AppFormatters.fileDate.string(from: date))_\(title.markdownFilenameSafe)"
         return uniqueURL(in: markdownDirectory, baseName: base, extensionName: "md")
     }
 
@@ -176,8 +176,29 @@ final class RecordingStore: ObservableObject {
                 save()
                 rewriteMigratedMarkdowns(before: decoded, after: migrated)
             }
+
+            migrateFrontMatterIfNeeded()
         } catch {
             recordings = []
+        }
+    }
+
+    /// 기존 md 파일에 YAML front matter를 1회 prepend한다.
+    /// `---` prefix 검사가 곧 멱등성 — 이미 마이그레이션된 파일(또는 사용자 자체 front matter)은 건너뛰고,
+    /// 본문은 재작성하지 않아 사용자의 수동 편집을 보존한다.
+    private func migrateFrontMatterIfNeeded() {
+        let writer = MarkdownWriter()
+
+        for recording in recordings where recording.status != .processing {
+            let url = recording.markdownURL
+            guard fileManager.fileExists(atPath: url.path),
+                  let content = try? String(contentsOf: url, encoding: .utf8),
+                  !content.hasPrefix("---\n") else {
+                continue
+            }
+
+            let migrated = writer.frontMatter(recording: recording) + "\n" + content
+            try? migrated.write(to: url, atomically: true, encoding: .utf8)
         }
     }
 

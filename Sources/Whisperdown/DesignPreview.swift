@@ -3,6 +3,7 @@ import SwiftUI
 
 enum DesignPreviewScenario: String {
     case ready
+    case raw         // ready + 원본 Markdown 보기 토글 (front matter 시각 검증)
     case processing
     case diarizing   // processing + 화자 분석 스텝 (6행 스테퍼)
     case recording
@@ -104,7 +105,8 @@ struct DesignPreviewRootView: View {
                     onSeekForward: {},
                     onRetryTranscription: { _ in },
                     onOpenFolder: {},
-                    onChooseFolder: {}
+                    onChooseFolder: {},
+                    initialShowsRawMarkdown: scenario == .raw
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -139,7 +141,7 @@ private extension DesignPreviewScenario {
         switch self {
         case .empty:
             return []
-        case .ready, .processing, .diarizing, .recording, .failed:
+        case .ready, .raw, .processing, .diarizing, .recording, .failed:
             return DesignPreviewData.recordings
         }
     }
@@ -170,7 +172,7 @@ private extension DesignPreviewScenario {
 
     var initialSelectedRecordingID: Recording.ID? {
         switch self {
-        case .ready, .recording:
+        case .ready, .raw, .recording:
             return DesignPreviewData.readyRecordingID
         case .processing, .diarizing:
             return DesignPreviewData.processingRecordingID

@@ -26,6 +26,16 @@ enum AppFormatters {
         return formatter
     }()
 
+    /// ISO8601 + 로컬 오프셋 (예: 2026-07-03T10:11:00+09:00).
+    /// ISO8601DateFormatter는 Sendable 미보장이라 고정 포맷 DateFormatter를 쓴다.
+    static let iso8601: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
+        return formatter
+    }()
+
     static func duration(_ interval: TimeInterval) -> String {
         let totalSeconds = max(0, Int(interval.rounded()))
         let hours = totalSeconds / 3600
