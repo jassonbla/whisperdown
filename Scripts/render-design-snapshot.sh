@@ -35,6 +35,7 @@ done
   -framework SwiftUI \
   -framework AppKit \
   -framework AVFoundation \
-  -framework Speech
+  -framework Speech \
+  -framework FoundationModels
 
 "$BUILD_DIR/render-design-snapshot" "$OUTPUT_PATH" "$COLOR_SCHEME" "$SCENARIO" "$WIDTH" "$HEIGHT"

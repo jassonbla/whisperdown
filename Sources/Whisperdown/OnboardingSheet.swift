@@ -151,6 +151,9 @@ struct OnboardingSheet: View {
             DiarizationSetupView(manager: manager)
                 .padding(.horizontal, Spacing.xl)
 
+            SummarySetupView()
+                .padding(.horizontal, Spacing.xl)
+
             sheetFooter {
                 Button(L10n.t("onboarding.modelPicker.back", language)) { step = .diagnostics }
                     .buttonStyle(.plain)
@@ -548,6 +551,85 @@ struct DiarizationSetupView: View {
             if case .downloading = manager.state(forFileName: item.fileName) {
                 manager.cancelDownload(item)
             }
+        }
+    }
+}
+
+/// AI 요약(선택 기능) 카드 — DiarizationSetupView와 동일한 레이아웃 언어.
+/// 다운로드가 아니라 OS 가용성만 다루므로 상태 표시 + 용어집 편집 버튼으로 구성된다.
+struct SummarySetupView: View {
+    @Environment(\.appLanguage) private var language
+
+    private var availability: SummaryAvailability {
+        SummaryEngine.availability()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(alignment: .center, spacing: Spacing.md) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.t("summary.section.title", language))
+                        .font(Typography.emphasis)
+                        .foregroundStyle(Palette.label)
+
+                    Text(L10n.t("summary.section.subtitle", language))
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.tertiaryLabel)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: Spacing.md)
+
+                statusBadge
+            }
+            .padding(Spacing.md)
+
+            HStack(spacing: Spacing.md) {
+                Button {
+                    NotificationCenter.default.post(name: .openGlossaryRequested, object: nil)
+                } label: {
+                    Text(L10n.t("summary.glossary.edit", language))
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.label.opacity(0.84))
+                        .padding(.horizontal, Spacing.md)
+                        .frame(height: 24)
+                        .background(Color.controlSurface.opacity(0.7), in: Capsule())
+                }
+                .buttonStyle(.plain)
+
+                Text(L10n.t("summary.glossary.hint", language))
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.tertiaryLabel)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, Spacing.md)
+            .padding(.bottom, Spacing.md)
+        }
+        .background(Palette.bg1Muted, in: RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous)
+                .strokeBorder(Color.hairline, lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        switch availability {
+        case .available:
+            Label(L10n.t("summary.status.available", language), systemImage: "checkmark.circle.fill")
+                .font(Typography.caption)
+                .foregroundStyle(Palette.success)
+
+        case .unsupportedOS:
+            Text(L10n.t("summary.status.unsupportedOS", language))
+                .font(Typography.caption)
+                .foregroundStyle(Palette.tertiaryLabel)
+
+        case .modelUnavailable(let reason):
+            Text(String(format: L10n.t("summary.status.modelUnavailable", language), reason))
+                .font(Typography.caption)
+                .foregroundStyle(Palette.tertiaryLabel)
+                .lineLimit(2)
         }
     }
 }

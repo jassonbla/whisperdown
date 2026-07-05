@@ -10,4 +10,6 @@ extension Notification.Name {
     static let toggleRecordingRequested = Notification.Name("toggleRecordingRequested")
     /// ⌘F — 사이드바 검색 필드 포커스.
     static let focusSearchRequested = Notification.Name("focusSearchRequested")
+    /// Settings/온보딩에서 GLOSSARY.md 열기 요청 — RecordingStore가 수신 (없으면 템플릿 생성 후 열기).
+    static let openGlossaryRequested = Notification.Name("openGlossaryRequested")
 }

@@ -25,12 +25,15 @@ Scenario data lives in `DesignPreview.swift` (`DesignPreviewData`); it construct
 
 ## Architecture
 
-- `RootView` owns the `@StateObject`s (`RecordingStore`, `AudioRecorder`, `RecordingProcessor`, `AudioPlaybackController`) and threads state down as **plain props** — no `@EnvironmentObject` anywhere; keep it that way.
+- `RootView` owns the `@StateObject`s (`RecordingStore`, `AudioRecorder`, `RecordingProcessor`, `AudioPlaybackController`, `SummaryCoordinator`) and threads state down as **plain props** — no `@EnvironmentObject` anywhere; keep it that way.
 - `TranscriptionEngine` (facade) → `WhisperCppTranscriptionEngine` if configured, else `AppleSpeechTranscriptionEngine` (ko_KR, on-device when supported). Engines are plain `Sendable` structs that shell out via `Process`.
 - whisper.cpp pipeline: ffmpeg → 16kHz mono PCM wav → whisper-cli (`-l ko`, txt+JSON output) → validation (empty check + hallucination filter using token probabilities from the JSON).
 - `RecordingProcessor` (`@MainActor ObservableObject`) drives the flow and writes Markdown via `MarkdownWriter`; titles from `TitleExtractor`.
 - **Callback pattern for engine→UI reporting**: parameters typed `@MainActor @Sendable (T) -> Void` (e.g. `onStageChange`, `onProgress`). This lets Sendable structs call into the MainActor processor with a plain `[weak self]` closure — no `Task { @MainActor in }` wrapping. Follow this pattern for any new engine→UI channel.
 - `TranscriptionStage` (converting/transcribing/finalizing) is **transient display state** — never persist it. `RecordingStatus` (`.ready/.processing/.failed`) is the persisted, `Codable` model in `Models.swift`; don't mix the two.
+- **FoundationModels isolation**: `import FoundationModels` lives ONLY in `FoundationModelsSummarizer.swift`, fully wrapped in `#if canImport(FoundationModels)` + `@available(macOS 26.0, *)`. Deployment target stays macOS 14 (weak link). Never let FM types leak into other files — everything else talks through `SummaryBackend`/`SummaryAvailability` in `SummaryEngine.swift`. Background summary tasks live in `SummaryCoordinator` (keyed by `Recording.ID`), NOT in `RecordingProcessor` (its defer resets all @Published state on return).
+- Summary writes replace only the `## 요약` section body (`MarkdownWriter.replacingSummarySection`) — never full re-render onto an existing file (would clobber manual edits). `GLOSSARY.md` in the markdown folder is read fresh on every summarize run and injected into the model instructions (capped at 1,200 chars).
+- **FoundationModels language-detector quirk (learned from a real 47-min meeting)**: the on-device model throws `unsupportedLanguageOrLocale` ("Unsupported language") on chunks dominated by very short disfluent fragments + repeated `Speaker N:` labels — the labels dilute the actual language content past the detector's confidence threshold. Two defenses in `SummaryEngine`, both required: (1) the chunker omits `Speaker N:` labels entirely when there's only ONE distinct speaker; (2) `mapChunk` is per-chunk resilient — on any error it retries once with labels stripped, and if that still fails it skips that chunk (returns nil) rather than aborting the whole summary. Never let one bad chunk kill the summary.
 
 ## whisper-cli specifics (homebrew whisper-cpp 1.9.1)
 
