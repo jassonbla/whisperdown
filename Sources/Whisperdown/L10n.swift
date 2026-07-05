@@ -329,6 +329,22 @@ enum L10n {
             .en: "Transcription confidence was too low to mark complete. Detected phrase: %@",
             .ko: "전사 결과 신뢰도가 낮아 완료 처리하지 않았습니다. 감지된 문구: %@"
         ],
+        "error.engine.repetitionLoop": [
+            .en: "Transcription entered a repetition loop and was stopped (repeated phrase: %@). Please retry.",
+            .ko: "전사가 반복 루프에 빠져 중단했습니다 (반복 문구: %@). 다시 시도해 주세요."
+        ],
+        "error.engine.speechAnalyzer.localeNotInstalled": [
+            .en: "The on-device Korean speech model is not installed.",
+            .ko: "온디바이스 한국어 음성 모델이 설치되어 있지 않습니다."
+        ],
+        "error.engine.speechAnalyzer.empty": [
+            .en: "SpeechAnalyzer produced an empty transcript.",
+            .ko: "SpeechAnalyzer 전사 결과가 비어 있습니다."
+        ],
+        "error.engine.speechAnalyzer.failed": [
+            .en: "SpeechAnalyzer failed: %@",
+            .ko: "SpeechAnalyzer 전사에 실패했습니다: %@"
+        ],
         "error.engine.processLaunchFailed": [
             .en: "Failed to launch %@: %@",
             .ko: "%@ 실행에 실패했습니다: %@"

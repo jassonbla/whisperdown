@@ -23,6 +23,19 @@ struct TranscriptionEngine: Sendable {
             )
         }
 
+        // 폴백 이중화: macOS 26+는 신형 SpeechAnalyzer(장문 특화, 실측 47분→16.7초) 우선,
+        // 어떤 이유로든 실패하면 구형 SFSpeechRecognizer 경로로 조용히 내려간다.
+        if #available(macOS 26.0, *) {
+            do {
+                var result = try await SpeechAnalyzerTranscriptionEngine()
+                    .transcribe(audio: audio, onStageChange: onStageChange)
+                result.engineNote = "\(result.engineNote) fallback. whisper.cpp is not configured."
+                return result
+            } catch {
+                // 구형 경로로 계속
+            }
+        }
+
         do {
             var result = try await appleSpeech.transcribe(audio: audio, onStageChange: onStageChange)
             result.engineNote = "\(result.engineNote) fallback. whisper.cpp is not configured."

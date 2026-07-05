@@ -37,7 +37,7 @@ GPU (Metal) is opt-in via `WHISPERDOWN_WHISPER_GPU=1`; the default is CPU safe m
 ### Apple Speech's two jobs
 
 1. **Live preview during recording** (`LiveSpeechTranscriptionSession`): microphone buffers are streamed into `SFSpeechRecognizer` for the real-time caption. Whisper cannot do streaming recognition, so this role always belongs to Apple Speech.
-2. **Fallback for final transcription**: only when whisper.cpp is not configured (`isConfigured == false`). Locale `ko_KR`, on-device when the recognizer supports it.
+2. **Fallback for final transcription**: only when whisper.cpp is not configured (`isConfigured == false`). The fallback is **two-tiered**: on macOS 26+ the new `SpeechAnalyzer`/`SpeechTranscriber` API runs first (Apple's long-form successor to SFSpeechRecognizer — measured 16.7s for a 47-minute file, per-result timestamped segments, no silence hallucinations); if it fails for any reason, or on pre-26 systems, the legacy `SFSpeechRecognizer` path takes over unchanged. Locale `ko_KR`, on-device.
 
 So the app effectively uses **two ML systems**: Whisper (final transcription) and Apple Speech (live preview + fallback). Everything else is plumbing around them.
 
@@ -74,7 +74,7 @@ When installed, a second subprocess — `sherpa-onnx-offline-speaker-diarization
 The transcript text that lands in the Markdown file is **whisper's raw output**, verbatim. The full journey of the text:
 
 1. `transcript.txt` is read and trimmed of leading/trailing whitespace — the only transformation applied, ever.
-2. `validateTranscript` is a **gate, not an editor**: it throws (→ `.failed` status) on empty output or low-confidence hallucination phrases. It never modifies content.
+2. `validateTranscript` is a **gate, not an editor**: it throws (→ `.failed` status) on empty output, low-confidence hallucination phrases, or a **repetition loop** (8+ consecutive identical segments — a real GPU incident silently destroyed 32 minutes of a 47-minute transcript with one sentence repeated 1,389×, exit code 0; the gate turns that silent corruption into an explicit failure with a retry button). It never modifies content.
 3. `MarkdownWriter.render` is pure templating: it wraps the text in a fixed skeleton (YAML front matter, title, date/duration/engine metadata, `## 전사` section with speaker headers). No punctuation fixes, no paragraph splitting, no spacing normalization.
 
 The YAML front matter (`whisperdown: 1`, title, created, duration, audio, engine, speakers, status, generator) is a machine-readable metadata layer for downstream agents reading the output folder. Existing files are migrated once on launch by prepending front matter — the body is never rewritten, so manual edits survive (`RecordingStore.migrateFrontMatterIfNeeded`, idempotent via the `---` prefix check).

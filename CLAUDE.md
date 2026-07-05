@@ -26,7 +26,8 @@ Scenario data lives in `DesignPreview.swift` (`DesignPreviewData`); it construct
 ## Architecture
 
 - `RootView` owns the `@StateObject`s (`RecordingStore`, `AudioRecorder`, `RecordingProcessor`, `AudioPlaybackController`, `SummaryCoordinator`) and threads state down as **plain props** — no `@EnvironmentObject` anywhere; keep it that way.
-- `TranscriptionEngine` (facade) → `WhisperCppTranscriptionEngine` if configured, else `AppleSpeechTranscriptionEngine` (ko_KR, on-device when supported). Engines are plain `Sendable` structs that shell out via `Process`.
+- `TranscriptionEngine` (facade) → `WhisperCppTranscriptionEngine` if configured; else the fallback is two-tiered: `SpeechAnalyzerTranscriptionEngine` (macOS 26+, `@available`-gated single file like FoundationModelsSummarizer) first, then legacy `AppleSpeechTranscriptionEngine` on failure or pre-26. Engines are plain `Sendable` structs.
+- `validateTranscript` includes a **repetition-loop gate**: 8+ consecutive identical segment texts (trimmed, ≥2 chars) → `.repetitionLoopDetected` → `.failed` + retry. Rationale: a real GPU incident produced 1,389 consecutive identical segments with exit 0; natural backchannels ("네.") never exceed ~4 consecutive.
 - whisper.cpp pipeline: ffmpeg → 16kHz mono PCM wav → whisper-cli (`-l ko`, txt+JSON output) → validation (empty check + hallucination filter using token probabilities from the JSON).
 - `RecordingProcessor` (`@MainActor ObservableObject`) drives the flow and writes Markdown via `MarkdownWriter`; titles from `TitleExtractor`.
 - **Callback pattern for engine→UI reporting**: parameters typed `@MainActor @Sendable (T) -> Void` (e.g. `onStageChange`, `onProgress`). This lets Sendable structs call into the MainActor processor with a plain `[weak self]` closure — no `Task { @MainActor in }` wrapping. Follow this pattern for any new engine→UI channel.

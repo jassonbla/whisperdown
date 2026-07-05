@@ -305,6 +305,13 @@ struct WhisperCppTranscriptionEngine: Sendable {
             return
         }
 
+        // 반복 루프 게이트: 디코더가 루프에 빠지면(GPU 실사고: 동일 문장 1,389연속) 프로세스는
+        // exit 0으로 정상 종료하므로 여기서만 잡을 수 있다. 정상 회의의 짧은 맞장구("네.")도
+        // 연속으로는 3~4회를 넘지 않는 것을 실측 확인 — 8연속은 오탐 여유가 크다.
+        if let repeated = Self.detectRepetitionLoop(in: payload.transcription.compactMap(\.text)) {
+            throw WhisperCppError.repetitionLoopDetected(repeated)
+        }
+
         let normalized = text
             .replacingOccurrences(of: "\\s+", with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -335,6 +342,35 @@ struct WhisperCppTranscriptionEngine: Sendable {
         "구독좋아요부탁드립니다.",
         "구독좋아요부탁드립니다"
     ]
+
+    static let repetitionLoopThreshold = 8
+
+    /// 동일 세그먼트 텍스트가 임계값 이상 연속되면 그 문구를 반환한다 (루프 판정).
+    static func detectRepetitionLoop(in segmentTexts: [String]) -> String? {
+        var previous = ""
+        var runLength = 0
+
+        for raw in segmentTexts {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.count >= 2 else {
+                previous = ""
+                runLength = 0
+                continue
+            }
+
+            if trimmed == previous {
+                runLength += 1
+                if runLength >= repetitionLoopThreshold {
+                    return trimmed
+                }
+            } else {
+                previous = trimmed
+                runLength = 1
+            }
+        }
+
+        return nil
+    }
 }
 
 private struct WhisperJSONOutput: Decodable {
@@ -354,6 +390,7 @@ private struct WhisperJSONOutput: Decodable {
 }
 
 private struct WhisperJSONSegment: Decodable {
+    let text: String?
     let tokens: [WhisperJSONToken]?
 }
 
@@ -374,6 +411,7 @@ enum WhisperCppError: LocalizedError {
     case ffmpegMissing
     case emptyTranscript
     case lowConfidenceTranscript(String)
+    case repetitionLoopDetected(String)
     case processLaunchFailed(String, String)
     case processFailed(String, String)
 
@@ -389,6 +427,8 @@ enum WhisperCppError: LocalizedError {
             return L10n.t("error.engine.emptyTranscript", AppLanguage.current)
         case .lowConfidenceTranscript(let text):
             return String(format: L10n.t("error.engine.lowConfidence", AppLanguage.current), text)
+        case .repetitionLoopDetected(let text):
+            return String(format: L10n.t("error.engine.repetitionLoop", AppLanguage.current), text)
         case .processLaunchFailed(let executable, let message):
             return String(format: L10n.t("error.engine.processLaunchFailed", AppLanguage.current), executable, message)
         case .processFailed(let executable, let output):
