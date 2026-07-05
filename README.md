@@ -12,6 +12,7 @@ Native macOS recording app for turning Korean meeting recordings into Markdown.
 - Current transcription MVP prefers `whisper.cpp` with Korean language selection.
 - Apple Speech is kept only as a fallback when `whisper.cpp` is not configured.
 - Optional speaker separation via a sherpa-onnx diarization sidecar (installed in-app or with `Scripts/install-diarization.sh`).
+- Optional on-device AI summary (Apple Foundation Models, macOS 26+) that fills the `## 요약` section in the background — guided by a user-editable `GLOSSARY.md` that corrects misheard terms.
 
 ## Build
 

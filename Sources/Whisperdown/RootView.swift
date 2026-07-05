@@ -5,6 +5,7 @@ struct RootView: View {
     @StateObject private var recorder = AudioRecorder()
     @StateObject private var processor = RecordingProcessor()
     @StateObject private var playback = AudioPlaybackController()
+    @StateObject private var summaryCoordinator = SummaryCoordinator()
     @ObservedObject private var modelManager = ModelDownloadManager.shared
 
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -19,6 +20,7 @@ struct RootView: View {
     @State private var onboardingStep: OnboardingSheet.Step?
     @State private var isWhisperReady = WhisperCppTranscriptionEngine().status().isFullyConfigured
     @State private var isDiarizationReady = SpeakerDiarizationEngine().isConfigured
+    @State private var summaryAvailability = SummaryEngine.availability()
     @State private var pendingDeletion: Recording?
 
     private var filteredRecordings: [Recording] {
@@ -99,6 +101,7 @@ struct RootView: View {
             .onAppear {
                 isWhisperReady = WhisperCppTranscriptionEngine().status().isFullyConfigured
                 isDiarizationReady = SpeakerDiarizationEngine().isConfigured
+                summaryAvailability = SummaryEngine.availability()
                 if !hasCompletedOnboarding {
                     onboardingStep = .welcome
                 }
@@ -168,7 +171,10 @@ struct RootView: View {
             onSeekForward: { playback.seek(by: 10) },
             onRetryTranscription: retryTranscription,
             onOpenFolder: store.openMarkdownFolder,
-            onChooseFolder: store.chooseMarkdownDirectory
+            onChooseFolder: store.chooseMarkdownDirectory,
+            summaryPhase: summaryCoordinator.phase(for: selectedRecording?.id),
+            canGenerateSummary: summaryAvailability.isAvailable,
+            onGenerateSummary: { summaryCoordinator.summarize(recording: $0, store: store) }
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -202,6 +208,7 @@ struct RootView: View {
     }
 
     private func confirmDeletion(_ recording: Recording) {
+        summaryCoordinator.cancel(recording.id)
         if selectedRecordingID == recording.id {
             playback.stop()
             selectedRecordingID = nil
@@ -260,6 +267,9 @@ struct RootView: View {
                     selectedRecordingID = pending.id
                 }
                 selectedRecordingID = recording?.id
+                if let recording, recording.status == .ready {
+                    summaryCoordinator.summarize(recording: recording, store: store)
+                }
             }
         } else {
             playback.stop()
@@ -285,10 +295,15 @@ struct RootView: View {
             return
         }
 
+        // 재전사 시 이전 스냅샷 기반 요약은 무효 — 취소 후 새 결과로 다시 요약한다.
+        summaryCoordinator.cancel(recording.id)
         selectedRecordingID = recording.id
         Task {
             let updated = await processor.retry(recording: recording, store: store)
             selectedRecordingID = updated?.id
+            if let updated, updated.status == .ready {
+                summaryCoordinator.summarize(recording: updated, store: store)
+            }
         }
     }
 }

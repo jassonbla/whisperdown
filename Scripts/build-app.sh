@@ -21,7 +21,8 @@ mkdir -p "$BUILD_DIR"
   -framework SwiftUI \
   -framework AppKit \
   -framework AVFoundation \
-  -framework Speech
+  -framework Speech \
+  -framework FoundationModels
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"

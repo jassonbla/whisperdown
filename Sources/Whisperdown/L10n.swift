@@ -234,6 +234,26 @@ enum L10n {
         "error.download.extractFailed": [.en: "Failed to extract archive: %@", .ko: "압축 해제에 실패했습니다: %@"],
         "detail.partialTranscript.title": [.en: "Preview", .ko: "전사 미리보기"],
 
+        // MARK: Summary
+        "detail.help.generateSummary": [.en: "Generate Summary", .ko: "요약 생성"],
+        "summary.generating": [.en: "Generating summary…", .ko: "요약 생성 중…"],
+        "summary.failed": [.en: "Summary failed — you can try again.", .ko: "요약 생성에 실패했습니다 — 다시 시도할 수 있습니다."],
+        "summary.section.title": [.en: "AI Summary (Optional)", .ko: "AI 요약 (선택)"],
+        "summary.section.subtitle": [
+            .en: "Summarizes each recording on-device with Apple's local model and fills the summary section of the Markdown file. A glossary you edit corrects misheard terms.",
+            .ko: "Apple 온디바이스 모델로 녹음을 요약해 Markdown의 요약 섹션을 채웁니다. 직접 편집하는 용어집으로 잘못 인식된 용어를 바로잡습니다."
+        ],
+        "summary.status.label": [.en: "On-device model", .ko: "온디바이스 모델"],
+        "summary.status.available": [.en: "Available", .ko: "사용 가능"],
+        "summary.status.unsupportedOS": [.en: "Requires macOS 26 or later", .ko: "macOS 26 이상 필요"],
+        "summary.status.modelUnavailable": [.en: "Unavailable: %@", .ko: "사용 불가: %@"],
+        "summary.glossary.edit": [.en: "Edit Glossary", .ko: "용어집 편집"],
+        "summary.glossary.hint": [
+            .en: "GLOSSARY.md lives in your Markdown folder. Edits apply to the next summary.",
+            .ko: "GLOSSARY.md는 마크다운 폴더에 저장됩니다. 편집 내용은 다음 요약부터 적용됩니다."
+        ],
+        "summary.error.unavailable": [.en: "The on-device model is not available.", .ko: "온디바이스 모델을 사용할 수 없습니다."],
+
         // MARK: RecordingStore migration notes
         "store.migration.interrupted": [
             .en: "The transcription task did not complete because the app or local engine was interrupted. The original audio is preserved — please retry transcription.",

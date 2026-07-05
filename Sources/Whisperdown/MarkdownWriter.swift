@@ -28,6 +28,8 @@ struct MarkdownWriter {
         """
     }
 
+    static let summaryPlaceholder = "- 자동 요약은 다음 단계에서 연결됩니다."
+
     private func body(recording: Recording) -> String {
         let audioRelativePath = "Recordings/\(recording.audioURL.lastPathComponent)"
         let transcriptBody: String
@@ -37,6 +39,13 @@ struct MarkdownWriter {
             transcriptBody = recording.segments
                 .map(renderSegment)
                 .joined(separator: "\n\n")
+        }
+
+        let summaryBody: String
+        if let summary = recording.summary, !summary.isEmpty {
+            summaryBody = summary
+        } else {
+            summaryBody = Self.summaryPlaceholder
         }
 
         return """
@@ -49,12 +58,26 @@ struct MarkdownWriter {
 
         ## 요약
 
-        - 자동 요약은 다음 단계에서 연결됩니다.
+        \(summaryBody)
 
         ## 전사
 
         \(transcriptBody)
         """
+    }
+
+    /// 기존 파일에서 `## 요약` 섹션 본문만 교체한다 — 나머지(수동 편집 포함)는 그대로 보존.
+    /// 헤딩이 없으면(사용자가 삭제) nil — 호출부는 파일 쓰기를 건너뛴다.
+    func replacingSummarySection(in content: String, with summary: String) -> String? {
+        let lines = content.components(separatedBy: "\n")
+        guard let start = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "## 요약" }) else {
+            return nil
+        }
+
+        let end = lines[(start + 1)...].firstIndex(where: { $0.hasPrefix("## ") }) ?? lines.count
+        let head = lines[..<(start + 1)]
+        let tail = lines[end...]
+        return (Array(head) + ["", summary, ""] + Array(tail)).joined(separator: "\n")
     }
 
     private func renderSegment(_ segment: SpeakerSegment) -> String {

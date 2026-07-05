@@ -79,14 +79,20 @@ The transcript text that lands in the Markdown file is **whisper's raw output**,
 
 The YAML front matter (`whisperdown: 1`, title, created, duration, audio, engine, speakers, status, generator) is a machine-readable metadata layer for downstream agents reading the output folder. Existing files are migrated once on launch by prepending front matter — the body is never rewritten, so manual edits survive (`RecordingStore.migrateFrontMatterIfNeeded`, idempotent via the `---` prefix check).
 
-One deliberate hook exists for future post-processing: every saved file contains a `## 요약` placeholder section ("자동 요약은 다음 단계에서 연결됩니다") — reserved for an automatic summary step that is not yet implemented.
+## AI summary (optional, on-device)
 
-### Post-correction candidates (all currently absent)
+The `## 요약` section is filled by Apple Foundation Models (the on-device Apple Intelligence LLM, macOS 26+) after transcription completes — **in the background**, so the transcript appears immediately and the summary lands as a second write.
 
-- **Automatic summary** — fill the existing `## 요약` placeholder (local LLM or API).
-- **Punctuation/spacing correction** — Korean post-processing model or LLM pass.
+- **GLOSSARY.md**: a user-editable file in the Markdown output folder, injected into the model instructions on every run (live edits apply to the next summary). Terms listed there let the model fix words the transcriber misheard and apply domain context — verified empirically: a transcript containing the mis-transcription "스프린 트" was summarized with the corrected term "스프린트" from a glossary entry.
+- **Chunked map-reduce**: the on-device model has a 4,096-token window (~10 minutes of Korean speech). Longer transcripts are split at segment/sentence boundaries (~2,000-char chunks), summarized per chunk, then combined; a context-overflow error halves the chunk budget and retries once.
+- **Targeted write**: only the `## 요약` section body is replaced in the existing file (line-scan, no full re-render) — manual edits elsewhere survive, front matter untouched. If the user deleted the heading, the file is left alone and the summary is stored only in index.json.
+- **Isolation**: `import FoundationModels` lives in exactly one file (`FoundationModelsSummarizer.swift`), fully wrapped in `#if canImport` + `@available(macOS 26.0, *)` — the deployment target stays macOS 14; on older systems the feature is hidden and Settings shows "Requires macOS 26".
+- **Note**: summary is a *presentation layer on top of* the raw transcript — the `## 전사` section and `Recording.transcript` remain whisper's verbatim output, per the validation-not-correction policy above. Failure of the summary never affects the transcription (quiet inline notice + retry button).
 
-(Speaker diarization and turn-based paragraphing shipped with the sherpa-onnx sidecar — see the section above.)
+### Post-correction candidates (currently absent)
+
+- **Punctuation/spacing correction** — Korean post-processing model or LLM pass over the transcript body itself.
+- **llama.cpp summary backend** — a sidecar with a larger context window and selectable Korean models (EXAONE, Qwen); the `SummaryBackend` protocol in `SummaryEngine.swift` is the slot-in point.
 
 ## Related files
 
@@ -95,6 +101,9 @@ One deliberate hook exists for future post-processing: every saved file contains
 - `Sources/Whisperdown/LiveSpeechTranscriptionSession.swift` — live preview during recording
 - `Sources/Whisperdown/SpeakerDiarizationEngine.swift` — sherpa-onnx sidecar invocation and turn parsing
 - `Sources/Whisperdown/SpeakerTurnMerger.swift` — token/turn merge algorithm
+- `Sources/Whisperdown/SummaryEngine.swift` — summary facade, chunker, prompt builder, `SummaryBackend` protocol
+- `Sources/Whisperdown/FoundationModelsSummarizer.swift` — isolated Apple Foundation Models backend
+- `Sources/Whisperdown/SummaryCoordinator.swift` — background summary tasks, targeted `## 요약` write
 - `Sources/Whisperdown/ModelCatalog.swift` + `DiarizationCatalog.swift` — downloadable item lists
 - `Sources/Whisperdown/MarkdownWriter.swift` — output templating (no content transformation)
 - `Sources/Whisperdown/TitleExtractor.swift` — title heuristic

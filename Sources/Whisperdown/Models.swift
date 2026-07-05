@@ -44,6 +44,9 @@ struct Recording: Identifiable, Codable, Hashable {
     var transcript: String
     var segments: [SpeakerSegment]
     var engineNote: String
+    /// AI 생성 요약 (마크다운 불릿). optional + 기본값 — 기존 index.json 디코드가 깨지면
+    /// load()의 catch가 라이브러리 전체를 비우므로 반드시 하위 호환이어야 한다.
+    var summary: String? = nil
 }
 
 struct TranscriptResult: Hashable {

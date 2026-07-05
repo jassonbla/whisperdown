@@ -30,6 +30,9 @@ struct DetailView: View {
     let onChooseFolder: () -> Void
     /// 스냅샷 시나리오용 초기값 — 런타임 토글은 rawMarkdownOverride가 담당.
     var initialShowsRawMarkdown: Bool = false
+    var summaryPhase: SummaryPhase? = nil
+    var canGenerateSummary: Bool = false
+    var onGenerateSummary: (Recording) -> Void = { _ in }
 
     @State private var rawMarkdownOverride: Bool?
     @State private var didCopyMarkdown = false
@@ -80,6 +83,13 @@ struct DetailView: View {
 
             HStack(spacing: Spacing.xs) {
                 if let recording, recording.status == .ready, !isRecording, !isProcessing {
+                    if canGenerateSummary, recording.summary == nil, summaryPhase != .running {
+                        IconButton(systemName: "sparkles") {
+                            onGenerateSummary(recording)
+                        }
+                        .help(L10n.t("detail.help.generateSummary", language))
+                    }
+
                     IconButton(
                         systemName: showsRawMarkdown ? "text.bubble" : "doc.plaintext",
                         isActive: showsRawMarkdown
@@ -258,20 +268,23 @@ struct DetailView: View {
                 .frame(maxWidth: .infinity, minHeight: 280)
 
             case .ready:
-                if showsRawMarkdown {
-                    MarkdownPreview(content: markdownContent(for: recording))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: AppMetric.transcriptMaxWidth, alignment: .leading)
-                        .padding(.top, Spacing.xs)
-                } else {
-                    VStack(alignment: .leading, spacing: Spacing.lg) {
-                        ForEach(recording.segments) { segment in
-                            TranscriptSegmentView(segment: segment)
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    summaryStatusRow
+
+                    if showsRawMarkdown {
+                        MarkdownPreview(content: markdownContent(for: recording))
+                            .textSelection(.enabled)
+                    } else {
+                        VStack(alignment: .leading, spacing: Spacing.lg) {
+                            ForEach(recording.segments) { segment in
+                                TranscriptSegmentView(segment: segment)
+                            }
                         }
                     }
-                    .frame(maxWidth: AppMetric.transcriptMaxWidth, alignment: .leading)
-                    .padding(.top, Spacing.xs)
                 }
+                .frame(maxWidth: AppMetric.transcriptMaxWidth, alignment: .leading)
+                .padding(.top, Spacing.xs)
+                .animation(MotionToken.quick, value: summaryPhase)
             }
         } else if isProcessing {
             processingView
@@ -309,6 +322,30 @@ struct DetailView: View {
         }
         .padding(.top, Spacing.xs)
         .frame(maxWidth: .infinity, minHeight: 240, alignment: .topLeading)
+    }
+
+    /// 백그라운드 요약 진행/실패의 조용한 인라인 표시. 완료 시엔 행이 그냥 사라진다 —
+    /// 요약 자체는 md 파일/미리보기가 보여주는 것이 제품 표면.
+    @ViewBuilder
+    private var summaryStatusRow: some View {
+        if summaryPhase == .running {
+            HStack(spacing: Spacing.sm) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(L10n.t("summary.generating", language))
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.secondaryLabel)
+            }
+        } else if case .failed = summaryPhase {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "exclamationmark.circle")
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.warning)
+                Text(L10n.t("summary.failed", language))
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.secondaryLabel)
+            }
+        }
     }
 
     /// 원본 보기/복사의 소스는 디스크의 실제 파일 — 사용자의 수동 편집이 그대로 반영된다.

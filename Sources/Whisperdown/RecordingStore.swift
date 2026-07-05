@@ -43,6 +43,16 @@ final class RecordingStore: ObservableObject {
                 self?.reloadMarkdownDirectoryFromDefaults()
             }
         }
+
+        NotificationCenter.default.addObserver(
+            forName: .openGlossaryRequested,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.openGlossary()
+            }
+        }
     }
 
     private func reloadMarkdownDirectoryFromDefaults() {
@@ -95,6 +105,47 @@ final class RecordingStore: ObservableObject {
         ensureDirectories()
         NSWorkspace.shared.open(markdownDirectory)
     }
+
+    // MARK: 용어집 (GLOSSARY.md)
+
+    var glossaryURL: URL {
+        markdownDirectory.appendingPathComponent("GLOSSARY.md")
+    }
+
+    /// 요약 실행마다 fresh 읽기 — 편집 내용이 다음 요약부터 바로 적용된다.
+    func glossaryText() -> String? {
+        guard let text = try? String(contentsOf: glossaryURL, encoding: .utf8),
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return text
+    }
+
+    /// 없으면 템플릿으로 생성한 뒤 기본 에디터로 연다.
+    func openGlossary() {
+        ensureDirectories()
+        if !fileManager.fileExists(atPath: glossaryURL.path) {
+            try? Self.glossaryTemplate.write(to: glossaryURL, atomically: true, encoding: .utf8)
+        }
+        NSWorkspace.shared.open(glossaryURL)
+    }
+
+    static let glossaryTemplate = """
+    # Whisperdown 용어집 (Glossary)
+
+    <!--
+    여기에 등록한 용어는 요약 생성 시 온디바이스 AI에게 전달되어,
+    음성 인식이 잘못 받아적은 단어를 바로잡고 도메인 맥락을 반영하는 데 사용됩니다.
+    Terms listed here are given to the on-device model so summaries can fix
+    words the transcriber misheard and apply your domain context.
+
+    형식: - 올바른 용어: 설명 (자주 잘못 인식되는 표기가 있으면 함께 적어 주세요)
+    파일이 길면 앞부분만 사용됩니다 — 핵심 용어 위주로 짧게 유지하세요.
+    -->
+
+    - Whisperdown: 이 앱의 이름 (음성 인식 결과 예: "위스퍼 다운", "휘스퍼다운")
+    - 스프린트: 개발 반복 주기 (예: "스프린 트", "스프링트"로 인식되기도 함)
+    """
 
     /// 녹음 삭제. 인덱스에서 제거하고 오디오/마크다운 파일은 휴지통으로 이동한다(복구 가능).
     func remove(_ recording: Recording) {
