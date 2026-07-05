@@ -48,11 +48,15 @@ struct WhisperdownApp: App {
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
             }
-        }
 
-        Settings {
-            SettingsView()
-                .preferredColorScheme(Self.forcedScheme)
+            // Settings는 별도 NSWindow 대신 메인 창에 종속된 시트로 띄운다 (RootView가 소유) —
+            // 창을 옮기거나 리사이즈해도 함께 움직이도록.
+            CommandGroup(replacing: .appSettings) {
+                Button(L10n.t("menu.settings", language)) {
+                    NotificationCenter.default.post(name: .openSettingsRequested, object: nil)
+                }
+                .keyboardShortcut(",", modifiers: [.command])
+            }
         }
     }
 }

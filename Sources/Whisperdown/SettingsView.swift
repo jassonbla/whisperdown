@@ -1,28 +1,48 @@
 import AppKit
 import SwiftUI
 
-/// 앱 설정 (⌘,). Settings 씬은 별도 창이므로 상태는 shared 싱글턴/노티로 동기화한다.
+enum SettingsTab: Hashable {
+    case general
+    case engine
+}
+
+/// Settings 씬은 열릴 때마다 새로 생성되므로, 특정 탭을 지정해 열기 위한 상태는
+/// 씬 밖(예: DetailView의 엔진 배지)에서도 접근 가능한 공유 싱글턴에 둔다.
+@MainActor
+final class SettingsNavigation: ObservableObject {
+    static let shared = SettingsNavigation()
+
+    @Published var selectedTab: SettingsTab = .general
+
+    private init() {}
+}
+
+/// 앱 설정 (⌘,). RootView가 소유한 시트로 떠서 메인 창에 종속된다(별도 NSWindow 아님) —
+/// 상태는 shared 싱글턴/노티로 동기화한다.
 struct SettingsView: View {
     @AppStorage("appLanguage") private var appLanguageRaw = AppLanguage.en.rawValue
+    @ObservedObject private var navigation = SettingsNavigation.shared
 
     private var language: AppLanguage {
         AppLanguage(rawValue: appLanguageRaw) ?? .en
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: $navigation.selectedTab) {
             GeneralSettingsView()
                 .tabItem {
                     Label(L10n.t("settings.tab.general", language), systemImage: "gearshape")
                 }
+                .tag(SettingsTab.general)
 
             EngineSettingsView()
                 .tabItem {
                     Label(L10n.t("settings.tab.engine", language), systemImage: "waveform")
                 }
+                .tag(SettingsTab.engine)
         }
         .environment(\.appLanguage, language)
-        .frame(width: 520)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.bg1)
     }
 }
@@ -113,24 +133,26 @@ private struct EngineSettingsView: View {
     @State private var engineStatus = WhisperCppTranscriptionEngine().status()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.lg) {
-            EngineDiagnosticsView(status: engineStatus) {
-                engineStatus = WhisperCppTranscriptionEngine().status()
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                EngineDiagnosticsView(status: engineStatus) {
+                    engineStatus = WhisperCppTranscriptionEngine().status()
+                }
+
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    Text(L10n.t("engine.diagnostics.model", language))
+                        .font(Typography.emphasis)
+                        .foregroundStyle(Palette.label)
+
+                    ModelListView(manager: manager)
+                }
+
+                DiarizationSetupView(manager: manager)
+
+                SummarySetupView(manager: manager)
             }
-
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text(L10n.t("engine.diagnostics.model", language))
-                    .font(Typography.emphasis)
-                    .foregroundStyle(Palette.label)
-
-                ModelListView(manager: manager)
-            }
-
-            DiarizationSetupView(manager: manager)
-
-            SummarySetupView(manager: manager)
+            .padding(Spacing.xl)
         }
-        .padding(Spacing.xl)
         .onChange(of: manager.states) {
             engineStatus = WhisperCppTranscriptionEngine().status()
         }

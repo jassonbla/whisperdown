@@ -40,6 +40,7 @@ enum L10n {
         "menu.newRecording": [.en: "New Recording / Stop Recording", .ko: "새 녹음 / 녹음 정지"],
         "menu.search": [.en: "Search", .ko: "검색"],
         "menu.openMarkdownFolder": [.en: "Open Markdown Folder", .ko: "Markdown 폴더 열기"],
+        "menu.settings": [.en: "Settings...", .ko: "설정..."],
 
         // MARK: Alerts (RootView)
         "alert.deleteRecording.title": [.en: "Delete Recording", .ko: "녹음 삭제"],
@@ -83,6 +84,8 @@ enum L10n {
         ],
         "onboarding.diagnostics.skip": [.en: "Skip", .ko: "건너뛰기"],
         "onboarding.diagnostics.next": [.en: "Next: Choose Model", .ko: "다음: 모델 선택"],
+        "onboarding.diagnostics.close": [.en: "Close", .ko: "닫기"],
+        "onboarding.diagnostics.changeModel": [.en: "Change Model", .ko: "모델 변경"],
         "onboarding.modelPicker.title": [.en: "Download Transcription Model", .ko: "전사 모델 다운로드"],
         "onboarding.modelPicker.subtitle": [
             .en: "Models are stored on this Mac and work offline. You can change this later in Settings (⌘,).",

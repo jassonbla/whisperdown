@@ -1,5 +1,13 @@
 import SwiftUI
 
+/// Settings 시트를 트리거할 때 창 크기를 값으로 캡처해 전달한다 —
+/// `.sheet(isPresented:)` 클로저 안에서 `windowSize` state를 직접 읽으면
+/// 갱신 전 스냅숏(0,0)이 캡처되는 현상이 있어 `.sheet(item:)`으로 전환했다.
+private struct SettingsPresentation: Identifiable {
+    let id = UUID()
+    let windowSize: CGSize
+}
+
 struct RootView: View {
     @StateObject private var store = RecordingStore()
     @StateObject private var recorder = AudioRecorder()
@@ -19,6 +27,8 @@ struct RootView: View {
     @State private var selectedRecordingID: Recording.ID?
     @State private var searchText = ""
     @State private var onboardingStep: OnboardingSheet.Step?
+    @State private var settingsPresentation: SettingsPresentation?
+    @State private var windowSize: CGSize = .zero
     @State private var isWhisperReady = WhisperCppTranscriptionEngine().status().isFullyConfigured
     @State private var isDiarizationReady = SpeakerDiarizationEngine().isConfigured
     @State private var summaryAvailability = SummaryEngine.effectiveAvailability()
@@ -54,6 +64,7 @@ struct RootView: View {
             .background(WindowChromeConfigurator())
             .background(floatingRecorderPresenter)
             .background(deleteShortcutButton)
+            .background(windowSizeTracker)
             .alert(
                 L10n.t("alert.deleteRecording.title", language),
                 isPresented: deletionAlertBinding,
@@ -93,7 +104,13 @@ struct RootView: View {
                 isDiarizationReady = SpeakerDiarizationEngine().isConfigured
             }
             .onReceive(NotificationCenter.default.publisher(for: .openEngineSetupRequested)) { _ in
-                onboardingStep = .diagnostics
+                // 별도 진단 시트 대신 Settings 시트(엔진 탭)를 재사용 — 두 UI가 같은
+                // EngineDiagnosticsView/ModelListView를 중복 구현하지 않도록 통일.
+                SettingsNavigation.shared.selectedTab = .engine
+                settingsPresentation = SettingsPresentation(windowSize: windowSize)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .openSettingsRequested)) { _ in
+                settingsPresentation = SettingsPresentation(windowSize: windowSize)
             }
             .onReceive(NotificationCenter.default.publisher(for: .toggleRecordingRequested)) { _ in
                 toggleRecording()
@@ -127,6 +144,29 @@ struct RootView: View {
                     isDiarizationReady = SpeakerDiarizationEngine().isConfigured
                 }
             }
+            .sheet(item: $settingsPresentation) { presentation in
+                SettingsView()
+                    // 메인 창 크기의 60% — 창을 옮기거나 리사이즈해도 시트가 함께 움직이도록
+                    // 네이티브 Settings 씬 대신 메인 창에 종속된 시트를 사용한다.
+                    // 트리거 시점에 크기를 값으로 캡처한다 — .sheet(isPresented:) 클로저 안에서
+                    // windowSize를 직접 읽으면 갱신 전 스냅숏(0,0)을 반환하는 현상이 있었다.
+                    .frame(
+                        width: max(presentation.windowSize.width * 0.6, 420),
+                        height: max(presentation.windowSize.height * 0.6, 360)
+                    )
+            }
+    }
+
+    private var windowSizeTracker: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear {
+                    windowSize = proxy.size
+                }
+                .onChange(of: proxy.size) {
+                    windowSize = proxy.size
+                }
+        }
     }
 
     private var layout: some View {
