@@ -21,7 +21,7 @@ struct RootView: View {
     @State private var onboardingStep: OnboardingSheet.Step?
     @State private var isWhisperReady = WhisperCppTranscriptionEngine().status().isFullyConfigured
     @State private var isDiarizationReady = SpeakerDiarizationEngine().isConfigured
-    @State private var summaryAvailability = SummaryEngine.availability()
+    @State private var summaryAvailability = SummaryEngine.effectiveAvailability()
     @State private var pendingDeletion: Recording?
 
     private var filteredRecordings: [Recording] {
@@ -104,11 +104,14 @@ struct RootView: View {
             .onReceive(NotificationCenter.default.publisher(for: .toggleGlossaryPanelRequested)) { _ in
                 isGlossaryPanelOpen.toggle()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .summaryBackendChanged)) { _ in
+                summaryAvailability = SummaryEngine.effectiveAvailability()
+            }
             .animation(MotionToken.quick, value: selectedRecordingID)
             .onAppear {
                 isWhisperReady = WhisperCppTranscriptionEngine().status().isFullyConfigured
                 isDiarizationReady = SpeakerDiarizationEngine().isConfigured
-                summaryAvailability = SummaryEngine.availability()
+                summaryAvailability = SummaryEngine.effectiveAvailability()
                 if !hasCompletedOnboarding {
                     onboardingStep = .welcome
                 }

@@ -89,10 +89,18 @@ The `## 요약` section is filled by Apple Foundation Models (the on-device Appl
 - **Isolation**: `import FoundationModels` lives in exactly one file (`FoundationModelsSummarizer.swift`), fully wrapped in `#if canImport` + `@available(macOS 26.0, *)` — the deployment target stays macOS 14; on older systems the feature is hidden and Settings shows "Requires macOS 26".
 - **Note**: summary is a *presentation layer on top of* the raw transcript — the `## 전사` section and `Recording.transcript` remain whisper's verbatim output, per the validation-not-correction policy above. Failure of the summary never affects the transcription (quiet inline notice + retry button).
 
+### Local model summary backend (optional, high-performance)
+
+Beyond the Apple default, Settings offers a **llama.cpp sidecar** running Gemma 4 GGUF models (E4B 5GB/128K ctx, 12B 7.1GB/256K, 26B-A4B MoE 17GB/256K — unsloth Q4_K_M). Each model row shows an LM-Studio-style hardware-fit badge (recommended / may be slow / not enough memory) computed from this Mac's unified memory vs the model's requirement; insufficient models can't be downloaded or selected.
+
+- **No chunking**: local backends advertise a 60k-char context budget via `SummaryBackend.contextCharBudget`, so even multi-hour transcripts summarize in a single pass (the chunker naturally yields one chunk). The glossary budget also grows to 4,000 chars.
+- **Invocation** (empirically pinned): `llama-completion -m <gguf> -f <promptfile> --jinja --no-display-prompt --temp 0.2 -c 65536 -n 4096 --no-warmup` — note recent llama.cpp split raw completion out of `llama-cli` (whose chat UI pollutes stdout). Gemma 4 is a thinking model: stdout carries a thought block, and the final answer is extracted after the last `<channel|>` marker.
+- **Silent fallback**: if the selected local model or runtime is missing at summarize time, the Apple backend is used — selection lives in UserDefaults (`summaryBackend`, `summaryModelFileName`).
+- **Install**: in-app (runtime ~11MB + chosen GGUF) or `Scripts/install-llama.sh`. Layout: `~/Library/Application Support/Whisperdown/Summary/{llama.cpp/bin, Models/}`; env overrides `WHISPERDOWN_LLAMA_CLI`, `WHISPERDOWN_SUMMARY_MODEL`.
+
 ### Post-correction candidates (currently absent)
 
 - **Punctuation/spacing correction** — Korean post-processing model or LLM pass over the transcript body itself.
-- **llama.cpp summary backend** — a sidecar with a larger context window and selectable Korean models (EXAONE, Qwen); the `SummaryBackend` protocol in `SummaryEngine.swift` is the slot-in point.
 
 ## Related files
 

@@ -13,6 +13,7 @@ Native macOS recording app for turning Korean meeting recordings into Markdown.
 - Apple Speech is kept only as a fallback when `whisper.cpp` is not configured.
 - Optional speaker separation via a sherpa-onnx diarization sidecar (installed in-app or with `Scripts/install-diarization.sh`).
 - Optional on-device AI summary (Apple Foundation Models, macOS 26+) that fills the `## 요약` section in the background — guided by a user-editable `GLOSSARY.md` that corrects misheard terms.
+- Optional local-model summary engine (llama.cpp + Gemma 4, installed in-app or with `Scripts/install-llama.sh`) with hardware-fit recommendations per model — larger context, single-pass summaries for long meetings.
 
 ## Build
 

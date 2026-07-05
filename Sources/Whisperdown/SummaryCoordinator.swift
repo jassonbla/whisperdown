@@ -23,7 +23,7 @@ final class SummaryCoordinator: ObservableObject {
     }
 
     func summarize(recording: Recording, store: RecordingStore) {
-        guard SummaryEngine.availability().isAvailable,
+        guard SummaryEngine.effectiveAvailability().isAvailable,
               recording.status == .ready,
               recording.summary == nil,
               tasks[recording.id] == nil else {

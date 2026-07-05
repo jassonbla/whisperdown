@@ -151,7 +151,7 @@ struct OnboardingSheet: View {
             DiarizationSetupView(manager: manager)
                 .padding(.horizontal, Spacing.xl)
 
-            SummarySetupView()
+            SummarySetupView(manager: manager)
                 .padding(.horizontal, Spacing.xl)
 
             sheetFooter {
@@ -555,35 +555,116 @@ struct DiarizationSetupView: View {
     }
 }
 
-/// AI 요약(선택 기능) 카드 — DiarizationSetupView와 동일한 레이아웃 언어.
-/// 다운로드가 아니라 OS 가용성만 다루므로 상태 표시 + 용어집 편집 버튼으로 구성된다.
+/// AI 요약 카드 — 엔진 선택(Apple 기본 / Gemma 로컬 모델)과 하드웨어 맞춤 배지,
+/// 모델 다운로드/제거, 용어집 편집을 담는다. DiarizationSetupView와 동일한 레이아웃 언어.
 struct SummarySetupView: View {
     @Environment(\.appLanguage) private var language
+    @ObservedObject var manager: ModelDownloadManager
 
-    private var availability: SummaryAvailability {
-        SummaryEngine.availability()
-    }
+    @AppStorage("summaryBackend") private var summaryBackendRaw = SummaryBackendKind.apple.rawValue
+    @AppStorage("summaryModelFileName") private var selectedModelFileName = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(alignment: .center, spacing: Spacing.md) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(L10n.t("summary.section.title", language))
-                        .font(Typography.emphasis)
-                        .foregroundStyle(Palette.label)
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding(Spacing.md)
 
-                    Text(L10n.t("summary.section.subtitle", language))
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.tertiaryLabel)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            Divider().overlay(Color.hairline)
 
-                Spacer(minLength: Spacing.md)
+            appleRow
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
 
-                statusBadge
+            ForEach(SummaryModelCatalog.all) { model in
+                Divider()
+                    .overlay(Color.hairline.opacity(0.6))
+                    .padding(.leading, Spacing.md)
+
+                SummaryModelRow(
+                    model: model,
+                    state: manager.state(forFileName: model.fileName),
+                    isSelected: isLocalSelected(model),
+                    onSelect: { select(model) },
+                    onDownload: { download(model) },
+                    onCancel: { manager.cancelDownload(model.downloadItem) },
+                    onRemove: { remove(model) }
+                )
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
             }
-            .padding(Spacing.md)
 
+            Divider().overlay(Color.hairline)
+
+            footer
+                .padding(Spacing.md)
+        }
+        .background(Palette.bg1Muted, in: RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous)
+                .strokeBorder(Color.hairline, lineWidth: 1)
+        }
+        .onAppear {
+            manager.refreshInstalled()
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(L10n.t("summary.section.title", language))
+                .font(Typography.emphasis)
+                .foregroundStyle(Palette.label)
+
+            Text(L10n.t("summary.section.subtitle", language))
+                .font(Typography.caption)
+                .foregroundStyle(Palette.tertiaryLabel)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var appleRow: some View {
+        HStack(spacing: Spacing.md) {
+            radio(isOn: SummaryBackendKind(rawValue: summaryBackendRaw) == .apple, enabled: true) {
+                summaryBackendRaw = SummaryBackendKind.apple.rawValue
+                NotificationCenter.default.post(name: .summaryBackendChanged, object: nil)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L10n.t("summary.engine.apple", language))
+                    .font(Typography.emphasis)
+                    .foregroundStyle(Palette.label)
+                Text(L10n.t("summary.engine.apple.detail", language))
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.tertiaryLabel)
+            }
+
+            Spacer(minLength: Spacing.md)
+
+            appleBadge
+        }
+    }
+
+    @ViewBuilder
+    private var appleBadge: some View {
+        switch SummaryEngine.appleAvailability() {
+        case .available:
+            Label(L10n.t("summary.status.available", language), systemImage: "checkmark.circle.fill")
+                .font(Typography.caption)
+                .foregroundStyle(Palette.success)
+        case .unsupportedOS:
+            Text(L10n.t("summary.status.unsupportedOS", language))
+                .font(Typography.caption)
+                .foregroundStyle(Palette.tertiaryLabel)
+        case .modelUnavailable(let reason):
+            Text(String(format: L10n.t("summary.status.modelUnavailable", language), reason))
+                .font(Typography.caption)
+                .foregroundStyle(Palette.tertiaryLabel)
+                .lineLimit(2)
+        }
+    }
+
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
             HStack(spacing: Spacing.md) {
                 Button {
                     NotificationCenter.default.post(name: .openGlossaryRequested, object: nil)
@@ -602,34 +683,201 @@ struct SummarySetupView: View {
                     .foregroundStyle(Palette.tertiaryLabel)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, Spacing.md)
-            .padding(.bottom, Spacing.md)
-        }
-        .background(Palette.bg1Muted, in: RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous)
-                .strokeBorder(Color.hairline, lineWidth: 1)
+
+            if manager.state(forFileName: SummaryModelCatalog.runtime.fileName) == .installed {
+                HStack(spacing: Spacing.sm) {
+                    Text(String(format: L10n.t("summary.runtime.installed", language), SummaryModelCatalog.runtimeVersion))
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.tertiaryLabel)
+
+                    Button {
+                        try? LlamaSummaryEngine.uninstall()
+                        summaryBackendRaw = SummaryBackendKind.apple.rawValue
+                        selectedModelFileName = ""
+                        manager.refreshInstalled()
+                        NotificationCenter.default.post(name: .summaryBackendChanged, object: nil)
+                    } label: {
+                        Text(L10n.t("summary.runtime.removeAll", language))
+                            .font(Typography.caption)
+                            .foregroundStyle(Palette.secondaryLabel)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 
+    private func radio(isOn: Bool, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                .font(Typography.headline)
+                .foregroundStyle(isOn ? Palette.success : (enabled ? Palette.secondaryLabel : Palette.tertiaryLabel))
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+    }
+
+    private func isLocalSelected(_ model: SummaryModel) -> Bool {
+        SummaryBackendKind(rawValue: summaryBackendRaw) == .local && selectedModelFileName == model.fileName
+    }
+
+    private func select(_ model: SummaryModel) {
+        summaryBackendRaw = SummaryBackendKind.local.rawValue
+        selectedModelFileName = model.fileName
+        NotificationCenter.default.post(name: .summaryBackendChanged, object: nil)
+    }
+
+    private func download(_ model: SummaryModel) {
+        if manager.state(forFileName: SummaryModelCatalog.runtime.fileName) != .installed {
+            manager.startDownload(SummaryModelCatalog.runtime)
+        }
+        manager.startDownload(model.downloadItem)
+    }
+
+    private func remove(_ model: SummaryModel) {
+        LlamaSummaryEngine.removeModel(fileName: model.fileName)
+        if selectedModelFileName == model.fileName {
+            summaryBackendRaw = SummaryBackendKind.apple.rawValue
+            selectedModelFileName = ""
+            NotificationCenter.default.post(name: .summaryBackendChanged, object: nil)
+        }
+        manager.refreshInstalled()
+    }
+}
+
+/// 로컬 GGUF 모델 1행 — 라디오 + 하드웨어 맞춤 배지 + 다운로드 상태 컨트롤.
+private struct SummaryModelRow: View {
+    @Environment(\.appLanguage) private var language
+
+    let model: SummaryModel
+    let state: ModelDownloadManager.DownloadState
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let onDownload: () -> Void
+    let onCancel: () -> Void
+    let onRemove: () -> Void
+
+    private var fit: SummaryModelFit {
+        SummaryModelFit.fit(for: model)
+    }
+
+    private var isSelectable: Bool {
+        state == .installed && fit != .insufficient
+    }
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            Button {
+                onSelect()
+            } label: {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(Typography.headline)
+                    .foregroundStyle(isSelected ? Palette.success : (isSelectable ? Palette.secondaryLabel : Palette.tertiaryLabel))
+            }
+            .buttonStyle(.plain)
+            .disabled(!isSelectable)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: Spacing.sm) {
+                    Text(model.displayName)
+                        .font(Typography.emphasis)
+                        .foregroundStyle(Palette.label)
+
+                    fitBadge
+                }
+
+                Text("\(model.formattedSize) · \(String(format: L10n.t("summary.model.context", language), model.formattedContext)) · \(L10n.t(model.detailKey, language))")
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.tertiaryLabel)
+
+                Text(String(format: L10n.t("summary.model.ram", language), model.formattedRecommendedRAM, Self.thisMacRAM))
+                    .font(AppTypography.listMeta)
+                    .foregroundStyle(Palette.tertiaryLabel)
+            }
+
+            Spacer(minLength: Spacing.md)
+
+            trailingControl
+        }
+        .opacity(fit == .insufficient ? 0.5 : 1)
+    }
+
+    private static let thisMacRAM = ByteCountFormatter.string(
+        fromByteCount: Int64(ProcessInfo.processInfo.physicalMemory),
+        countStyle: .memory
+    )
+
     @ViewBuilder
-    private var statusBadge: some View {
-        switch availability {
-        case .available:
-            Label(L10n.t("summary.status.available", language), systemImage: "checkmark.circle.fill")
-                .font(Typography.caption)
-                .foregroundStyle(Palette.success)
+    private var fitBadge: some View {
+        switch fit {
+        case .recommended:
+            badge(L10n.t("summary.model.badge.recommended", language), color: Palette.success)
+        case .maySlow:
+            badge(L10n.t("summary.model.badge.maySlow", language), color: Palette.warning)
+        case .insufficient:
+            badge(L10n.t("summary.model.badge.insufficient", language), color: Palette.destructive)
+        }
+    }
 
-        case .unsupportedOS:
-            Text(L10n.t("summary.status.unsupportedOS", language))
-                .font(Typography.caption)
-                .foregroundStyle(Palette.tertiaryLabel)
+    private func badge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(AppTypography.listMeta)
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(color.opacity(0.12), in: Capsule())
+    }
 
-        case .modelUnavailable(let reason):
-            Text(String(format: L10n.t("summary.status.modelUnavailable", language), reason))
-                .font(Typography.caption)
-                .foregroundStyle(Palette.tertiaryLabel)
-                .lineLimit(2)
+    @ViewBuilder
+    private var trailingControl: some View {
+        switch state {
+        case .idle:
+            Button(action: onDownload) {
+                Image(systemName: "arrow.down.circle")
+                    .font(Typography.headline)
+                    .foregroundStyle(fit == .insufficient ? Palette.tertiaryLabel : Palette.secondaryLabel)
+            }
+            .buttonStyle(.plain)
+            .disabled(fit == .insufficient)
+
+        case .downloading(let fraction, _, _):
+            HStack(spacing: Spacing.sm) {
+                Text("\(Int((fraction * 100).rounded()))%")
+                    .font(Typography.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(Palette.secondaryLabel)
+
+                CircularProcessingIndicator()
+                    .frame(width: 14, height: 14)
+
+                Button(action: onCancel) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Palette.tertiaryLabel)
+                }
+                .buttonStyle(.plain)
+            }
+
+        case .failed:
+            Button(action: onDownload) {
+                Image(systemName: "exclamationmark.arrow.circlepath")
+                    .font(Typography.headline)
+                    .foregroundStyle(Palette.warning)
+            }
+            .buttonStyle(.plain)
+
+        case .installed:
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.success)
+
+                Button(action: onRemove) {
+                    Text(L10n.t("summary.model.remove", language))
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.secondaryLabel)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 }

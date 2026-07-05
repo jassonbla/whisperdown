@@ -128,7 +128,7 @@ private struct EngineSettingsView: View {
 
             DiarizationSetupView(manager: manager)
 
-            SummarySetupView()
+            SummarySetupView(manager: manager)
         }
         .padding(Spacing.xl)
         .onChange(of: manager.states) {
