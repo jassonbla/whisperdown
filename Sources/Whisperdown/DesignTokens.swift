@@ -71,6 +71,7 @@ enum AppMetric {
     static let windowInset: CGFloat = 0
     static let panelGap: CGFloat = 0
     static let sidebarWidth: CGFloat = 280
+    static let glossaryPanelWidth: CGFloat = 320
     static let titleBarHeight: CGFloat = 40
     static let sidebarContentTopInset: CGFloat = Spacing.lg
     static let trafficLightTop: CGFloat = 14

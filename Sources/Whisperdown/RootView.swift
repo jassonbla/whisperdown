@@ -10,6 +10,7 @@ struct RootView: View {
 
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("appLanguage") private var appLanguageRaw = AppLanguage.en.rawValue
+    @AppStorage("isGlossaryPanelOpen") private var isGlossaryPanelOpen = false
 
     private var language: AppLanguage {
         AppLanguage(rawValue: appLanguageRaw) ?? .en
@@ -97,6 +98,12 @@ struct RootView: View {
             .onReceive(NotificationCenter.default.publisher(for: .toggleRecordingRequested)) { _ in
                 toggleRecording()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .openGlossaryRequested)) { _ in
+                isGlossaryPanelOpen = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleGlossaryPanelRequested)) { _ in
+                isGlossaryPanelOpen.toggle()
+            }
             .animation(MotionToken.quick, value: selectedRecordingID)
             .onAppear {
                 isWhisperReady = WhisperCppTranscriptionEngine().status().isFullyConfigured
@@ -127,8 +134,13 @@ struct RootView: View {
             HStack(spacing: 0) {
                 sidebar
                 detail
+                if isGlossaryPanelOpen {
+                    GlossaryPanel(store: store, isOpen: $isGlossaryPanelOpen)
+                        .transition(.move(edge: .trailing))
+                }
             }
         }
+        .animation(MotionToken.quick, value: isGlossaryPanelOpen)
     }
 
     private var sidebar: some View {
@@ -174,7 +186,8 @@ struct RootView: View {
             onChooseFolder: store.chooseMarkdownDirectory,
             summaryPhase: summaryCoordinator.phase(for: selectedRecording?.id),
             canGenerateSummary: summaryAvailability.isAvailable,
-            onGenerateSummary: { summaryCoordinator.summarize(recording: $0, store: store) }
+            onGenerateSummary: { summaryCoordinator.summarize(recording: $0, store: store) },
+            isGlossaryPanelOpen: isGlossaryPanelOpen
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

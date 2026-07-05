@@ -44,15 +44,6 @@ final class RecordingStore: ObservableObject {
             }
         }
 
-        NotificationCenter.default.addObserver(
-            forName: .openGlossaryRequested,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.openGlossary()
-            }
-        }
     }
 
     private func reloadMarkdownDirectoryFromDefaults() {
@@ -121,13 +112,19 @@ final class RecordingStore: ObservableObject {
         return text
     }
 
-    /// 없으면 템플릿으로 생성한 뒤 기본 에디터로 연다.
-    func openGlossary() {
+    /// 인앱 패널의 편집 내용을 파일에 쓴다. 로컬 파일이라 원자적 쓰기로 충분.
+    func saveGlossary(_ text: String) {
+        ensureDirectories()
+        try? text.write(to: glossaryURL, atomically: true, encoding: .utf8)
+    }
+
+    /// 용어집 파일을 Finder에서 연다(패널의 reveal 버튼용). 없으면 템플릿으로 생성 후 연다.
+    func revealGlossaryInFinder() {
         ensureDirectories()
         if !fileManager.fileExists(atPath: glossaryURL.path) {
             try? Self.glossaryTemplate.write(to: glossaryURL, atomically: true, encoding: .utf8)
         }
-        NSWorkspace.shared.open(glossaryURL)
+        NSWorkspace.shared.activateFileViewerSelecting([glossaryURL])
     }
 
     static let glossaryTemplate = """

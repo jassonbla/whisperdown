@@ -33,6 +33,7 @@ struct DetailView: View {
     var summaryPhase: SummaryPhase? = nil
     var canGenerateSummary: Bool = false
     var onGenerateSummary: (Recording) -> Void = { _ in }
+    var isGlossaryPanelOpen: Bool = false
 
     @State private var rawMarkdownOverride: Bool?
     @State private var didCopyMarkdown = false
@@ -113,6 +114,10 @@ struct DetailView: View {
                     }
                     .help(L10n.t("detail.help.retryTranscription", language))
                 }
+                IconButton(systemName: "character.book.closed", isActive: isGlossaryPanelOpen) {
+                    NotificationCenter.default.post(name: .toggleGlossaryPanelRequested, object: nil)
+                }
+                .help(L10n.t("detail.help.toggleGlossary", language))
                 IconButton(systemName: "folder", action: onOpenFolder)
                     .help(L10n.t("detail.help.openMarkdownFolder", language))
                 IconButton(systemName: "gearshape", action: onChooseFolder)

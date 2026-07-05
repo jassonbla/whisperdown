@@ -253,6 +253,14 @@ enum L10n {
             .ko: "GLOSSARY.md는 마크다운 폴더에 저장됩니다. 편집 내용은 다음 요약부터 적용됩니다."
         ],
         "summary.error.unavailable": [.en: "The on-device model is not available.", .ko: "온디바이스 모델을 사용할 수 없습니다."],
+        "glossary.panel.title": [.en: "Glossary", .ko: "용어집"],
+        "glossary.panel.close": [.en: "Close", .ko: "닫기"],
+        "glossary.panel.reveal": [.en: "Reveal in Finder", .ko: "Finder에서 보기"],
+        "glossary.panel.placeholder": [
+            .en: "Add terms the transcriber mishears, one per line.\nExample:\n- Whisperdown: the app's name",
+            .ko: "자주 잘못 인식되는 용어를 한 줄에 하나씩 추가하세요.\n예:\n- Whisperdown: 이 앱의 이름"
+        ],
+        "detail.help.toggleGlossary": [.en: "Glossary", .ko: "용어집"],
 
         // MARK: RecordingStore migration notes
         "store.migration.interrupted": [
