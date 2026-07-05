@@ -20,6 +20,7 @@ enum AppLayout {
     static let sidebarChromeReserveHeight: CGFloat = AppMetric.sidebarChromeReserveHeight
     static let detailContentMaxWidth: CGFloat = AppMetric.detailContentMaxWidth
     static let detailHorizontalPadding: CGFloat = AppMetric.detailHorizontalPadding
+    static let glossaryPanelWidth: CGFloat = AppMetric.glossaryPanelWidth
 }
 
 extension View {

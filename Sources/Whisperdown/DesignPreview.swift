@@ -5,6 +5,7 @@ enum DesignPreviewScenario: String {
     case ready
     case raw         // ready + 원본 Markdown 보기 토글 (front matter 시각 검증)
     case summarizing // ready + 백그라운드 요약 진행 인디케이터
+    case glossary    // ready + 인앱 용어집 우측 패널 열림
     case processing
     case diarizing   // processing + 화자 분석 스텝 (6행 스테퍼)
     case recording
@@ -17,6 +18,7 @@ struct DesignPreviewRootView: View {
 
     @State private var selectedRecordingID: Recording.ID?
     @State private var searchText = ""
+    private let previewStore = RecordingStore()
 
     init(scenario: DesignPreviewScenario = .ready) {
         self.scenario = scenario
@@ -108,9 +110,14 @@ struct DesignPreviewRootView: View {
                     onOpenFolder: {},
                     onChooseFolder: {},
                     initialShowsRawMarkdown: scenario == .raw,
-                    summaryPhase: scenario == .summarizing ? .running : nil
+                    summaryPhase: scenario == .summarizing ? .running : nil,
+                    isGlossaryPanelOpen: scenario == .glossary
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if scenario == .glossary {
+                    GlossaryPanel(store: previewStore, isOpen: .constant(true))
+                }
             }
 
             if scenario.isRecording {
@@ -143,7 +150,7 @@ private extension DesignPreviewScenario {
         switch self {
         case .empty:
             return []
-        case .ready, .raw, .summarizing, .processing, .diarizing, .recording, .failed:
+        case .ready, .raw, .summarizing, .glossary, .processing, .diarizing, .recording, .failed:
             return DesignPreviewData.recordings
         }
     }
@@ -174,7 +181,7 @@ private extension DesignPreviewScenario {
 
     var initialSelectedRecordingID: Recording.ID? {
         switch self {
-        case .ready, .raw, .summarizing, .recording:
+        case .ready, .raw, .summarizing, .glossary, .recording:
             return DesignPreviewData.readyRecordingID
         case .processing, .diarizing:
             return DesignPreviewData.processingRecordingID
