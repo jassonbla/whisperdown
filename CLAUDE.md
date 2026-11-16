@@ -16,6 +16,7 @@ Run the app: `open .build/Whisperdown.app` (quit first with `osascript -e 'quit 
 
 Design snapshots (visual QA without running the app):
 `bash Scripts/render-design-snapshot.sh <output.png> <light|dark> <empty|ready|processing|recording|failed> [width] [height]`
+Sheets: pass `settings-general|settings-engine` or `onboarding-welcome|onboarding-diagnostics|onboarding-modelPicker` as the scenario (e.g. `... out.png light settings-engine 768 1200`); they render against the real local engine state.
 Scenario data lives in `DesignPreview.swift` (`DesignPreviewData`); it constructs `DetailView`/`SidebarView` directly, so **any change to their memberwise initializers must also update `DesignPreview.swift`**.
 
 ## Git workflow
@@ -44,6 +45,19 @@ Scenario data lives in `DesignPreview.swift` (`DesignPreviewData`); it construct
 - GPU is **opt-in** via `WHISPERDOWN_WHISPER_GPU=1`; otherwise `--no-gpu` (CPU safe mode). **When GPU is on, the engine MUST pass `-et 2.8`** — measured on a real 47-min recording: default-flag Metal decoding fell into a repetition loop at the 15-min mark and destroyed the remaining 32 minutes (same sentence 1,389×); disabling flash-attn didn't fix it, raising the entropy threshold 2.4→2.8 did (verified twice, byte-identical output, 2.5 min vs 21.5 min CPU — 8.4× faster).
 - Progress: `-pp` prints `whisper_print_progress_callback: progress =  NN%` to **stderr**, once per 30-second audio chunk, and works alongside `-np`. Quirk: clips under 30s can emit a single value **over 100%** (observed 375%) — always clamp to 0...1. Short recordings therefore show no mid-flight percent; that's expected.
 - `run()` streams both pipes concurrently with `bytes.lines` (prevents 64KB pipe-buffer deadlock) while accumulating full output for `WhisperCppError.processFailed`.
+
+## UI primitives (modeled on vercel-labs/ui principles)
+
+- **Look**: achromatic palette, square corners (`Radius` = 0; only the window keeps its macOS radius), 1px borders, monospaced meta text. Tokens live in `DesignTokens.swift`; `Palette` text colors hold ≥4.5:1 on every background and `Palette.input` (control edges) holds ≥3:1 — recompute contrast when changing a value.
+- **Never stack `.opacity()` on a text color** — pick a `Palette` tier instead (opacity silently breaks contrast).
+- **One state source for buttons**: `ControlButtonStyle(variant:isActive:height:)` in `Controls.swift` owns rest/hover/pressed/disabled/active. Do not hand-roll `onHover` backgrounds or `.buttonStyle(.plain)` + manual fills for new buttons.
+- **Tabs, segments, radios, progress**: use `UnderlineTabs`, `SegmentedControl`, `RadioMark`, `LinearProgressBar` from `Controls.swift` instead of native `TabView`/`Picker(.segmented)`/`ProgressView` — the native ones ignore the tokens.
+- **Layout grid**: detail content, top bar and transport share the `detailHorizontalPadding` (30) edges; sidebar content shares `Spacing.md` (12); sheets share `Spacing.xl` (24). Both panes start content at `AppMetric.contentTopInset` and end in a bar of `AppMetric.bottomBarHeight`, so titles and bottom dividers line up across panes. Bordered/filled controls align their **box** to a margin; ghost controls align their **glyph/text** (negative padding lets the invisible hover box overhang). Sections are separated by `Spacing.xl`, label-to-control by `Spacing.sm`.
+- **Toolbar icons mean one thing**: `folder` always goes to Finder, `gearshape` always opens Settings, a toggle keeps one icon/label and flips `isActive`. Recording actions sit left of the divider, app-wide actions right. The engine label (top-left) is read-only status, not a button; the gear is the only way into Settings and opens the engine tab when whisper is not ready.
+- **Name every control**: `IconButton` requires `label:` — it feeds both the tooltip and the VoiceOver name. Tooltips are app-drawn: use `.tooltip(text)` (not `.help`, which never appears in the title-bar area of this hidden-title-bar window) and make sure the window/sheet root has `.tooltipHost()`. Icon-only `Button`s outside `IconButton` need `.accessibilityLabel`.
+- **Sidebar list is one Tab stop**: the `ScrollView` is the focusable element and ↑/↓ (`onMoveCommand`) move the selection; rows are tap targets, not `Button`s. ↓ in the search field hands focus to the list.
+- **Announce results that only change visually** with `AccessibilityNotification.Announcement` (copy, transcription done/failed).
+- **Motion**: repeating/decorative animation must check `accessibilityReduceMotion` (`recPulse`). The recording waveform is live signal, so it keeps updating. Playback shows a flat `ScrubBar` (click/drag to seek), never a synthetic waveform. Its mouse handling is an AppKit view with `mouseDownCanMoveWindow = false`, because the window moves when its background is dragged.
 
 ## Localization (L10n)
 

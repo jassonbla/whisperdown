@@ -57,6 +57,7 @@ struct RootView: View {
 
     var body: some View {
         layout
+            .tooltipHost()
             .environment(\.appLanguage, language)
             .appWindowShell()
             .ignoresSafeArea()
@@ -129,6 +130,10 @@ struct RootView: View {
                 isWhisperReady = WhisperCppTranscriptionEngine().status().isFullyConfigured
                 isDiarizationReady = SpeakerDiarizationEngine().isConfigured
                 summaryAvailability = SummaryEngine.effectiveAvailability()
+                // 상세 화면은 선택이 없으면 첫 녹음을 보여준다 — 목록의 선택 표시와 ↑/↓ 기준점도 맞춘다.
+                if selectedRecordingID == nil {
+                    selectedRecordingID = store.recordings.first?.id
+                }
                 if !hasCompletedOnboarding {
                     onboardingStep = .welcome
                 }
@@ -218,15 +223,22 @@ struct RootView: View {
             level: recorder.level,
             levelHistory: recorder.levelHistory,
             liveTranscript: recorder.liveTranscript,
-            playbackElapsed: playback.currentURL == selectedRecording?.audioURL ? playback.currentTime : selectedRecording?.duration ?? 0,
+            playbackElapsed: playback.currentURL == selectedRecording?.audioURL ? playback.currentTime : 0,
             isPlaybackPlaying: playback.currentURL == selectedRecording?.audioURL && playback.isPlaying,
             onRecordTapped: toggleRecording,
             onPlayPauseTapped: togglePlayback,
-            onSeekBackward: { playback.seek(by: -10) },
-            onSeekForward: { playback.seek(by: 10) },
+            onSeekBackward: { seekPlayback(by: -10) },
+            onSeekForward: { seekPlayback(by: 10) },
+            onScrubPlayback: scrubPlayback,
             onRetryTranscription: retryTranscription,
             onOpenFolder: store.openMarkdownFolder,
-            onChooseFolder: store.chooseMarkdownDirectory,
+            onOpenSettings: {
+                // 엔진이 준비되지 않았으면 고칠 수 있는 엔진 탭으로 바로 연다.
+                NotificationCenter.default.post(
+                    name: isWhisperReady ? .openSettingsRequested : .openEngineSetupRequested,
+                    object: nil
+                )
+            },
             summaryPhase: summaryCoordinator.phase(for: selectedRecording?.id),
             canGenerateSummary: summaryAvailability.isAvailable,
             onGenerateSummary: { summaryCoordinator.summarize(recording: $0, store: store) },
@@ -323,6 +335,7 @@ struct RootView: View {
                     selectedRecordingID = pending.id
                 }
                 selectedRecordingID = recording?.id
+                announceTranscriptionResult(recording)
                 if let recording, recording.status == .ready {
                     summaryCoordinator.summarize(recording: recording, store: store)
                 }
@@ -336,14 +349,45 @@ struct RootView: View {
         }
     }
 
+    /// 전사는 화면 변화로만 끝난다 — 스크린 리더에는 결과를 따로 알린다.
+    private func announceTranscriptionResult(_ recording: Recording?) {
+        guard let recording else { return }
+        let key = recording.status == .ready ? "a11y.transcription.done" : "a11y.transcription.failed"
+        AccessibilityNotification.Announcement(L10n.t(key, language)).post()
+    }
+
+    /// 지금 재생할 수 있는 녹음(녹음 중·전사 중에는 없음).
+    private var playableRecording: Recording? {
+        guard !recorder.isRecording, !processor.isProcessing else {
+            return nil
+        }
+
+        return selectedRecording
+    }
+
     private func togglePlayback() {
-        guard !recorder.isRecording,
-              !processor.isProcessing,
-              let recording = selectedRecording else {
+        guard let recording = playableRecording else {
             return
         }
 
         playback.toggle(url: recording.audioURL)
+    }
+
+    /// 재생 전이어도 위치를 옮길 수 있도록 플레이어를 먼저 올린다.
+    private func seekPlayback(by delta: TimeInterval) {
+        guard let recording = playableRecording, playback.prepare(url: recording.audioURL) else {
+            return
+        }
+
+        playback.seek(by: delta)
+    }
+
+    private func scrubPlayback(toFraction fraction: Double) {
+        guard let recording = playableRecording, playback.prepare(url: recording.audioURL) else {
+            return
+        }
+
+        playback.seek(to: fraction * playback.duration)
     }
 
     private func retryTranscription(_ recording: Recording) {
@@ -357,6 +401,7 @@ struct RootView: View {
         Task {
             let updated = await processor.retry(recording: recording, store: store)
             selectedRecordingID = updated?.id
+            announceTranscriptionResult(updated)
             if let updated, updated.status == .ready {
                 summaryCoordinator.summarize(recording: updated, store: store)
             }

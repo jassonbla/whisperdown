@@ -73,25 +73,6 @@ final class RecordingStore: ObservableObject {
         metadataDirectory.appendingPathComponent(indexFileName)
     }
 
-    func chooseMarkdownDirectory() {
-        let panel = NSOpenPanel()
-        panel.title = L10n.t("settings.markdownFolder.pickerTitle", AppLanguage.current)
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = markdownDirectory
-
-        guard panel.runModal() == .OK, let url = panel.url else {
-            return
-        }
-
-        markdownDirectory = url
-        UserDefaults.standard.set(url.path, forKey: "markdownDirectory")
-        ensureDirectories()
-        load()
-    }
-
     func openMarkdownFolder() {
         ensureDirectories()
         NSWorkspace.shared.open(markdownDirectory)

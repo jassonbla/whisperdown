@@ -52,9 +52,11 @@ enum L10n {
         "alert.playbackError.title": [.en: "Playback Error", .ko: "재생 오류"],
         "action.delete": [.en: "Delete", .ko: "삭제"],
         "action.cancel": [.en: "Cancel", .ko: "취소"],
+        "action.close": [.en: "Close", .ko: "닫기"],
         "action.ok": [.en: "OK", .ko: "확인"],
 
         // MARK: Settings
+        "settings.title": [.en: "Settings", .ko: "설정"],
         "settings.tab.general": [.en: "General", .ko: "일반"],
         "settings.tab.engine": [.en: "Transcription Engine", .ko: "전사 엔진"],
         "settings.language": [.en: "Language", .ko: "언어"],
@@ -132,23 +134,19 @@ enum L10n {
         "error.download.fileSystem": [.en: "Failed to save file: %@", .ko: "파일 저장 실패: %@"],
 
         // MARK: DetailView
-        "detail.help.engineSettings": [.en: "Transcription Engine Settings", .ko: "전사 엔진 설정"],
         "detail.help.openMarkdownFolder": [.en: "Open Markdown Folder", .ko: "Markdown 폴더 열기"],
-        "detail.help.chooseFolder": [.en: "Choose Save Folder", .ko: "저장 폴더 선택"],
-        "detail.help.retryTranscription": [.en: "Retry Transcription", .ko: "전사 재시도"],
+        "detail.help.openSettings": [.en: "Settings", .ko: "설정"],
+        "detail.help.retranscribe": [.en: "Transcribe Again", .ko: "다시 전사"],
         "detail.help.copyMarkdown": [.en: "Copy Markdown", .ko: "Markdown 복사"],
         "detail.help.copied": [.en: "Copied", .ko: "복사됨"],
         "detail.help.revealInFinder": [.en: "Reveal in Finder", .ko: "Finder에서 보기"],
         "detail.help.showRawMarkdown": [.en: "Markdown Preview", .ko: "Markdown 미리보기"],
-        "detail.help.showSegments": [.en: "View by Speaker", .ko: "화자별 보기"],
         "detail.help.dragMarkdown": [.en: "Drag to export the Markdown file", .ko: "드래그하여 Markdown 파일 내보내기"],
         "detail.badge.recording": [.en: "Recording", .ko: "녹음 중"],
         "detail.badge.appleSpeechTemp": [.en: "Apple Speech (Temporary)", .ko: "Apple Speech (임시)"],
         "detail.badge.whisperLocal": [.en: "Whisper Local", .ko: "Whisper 로컬"],
-        "detail.badge.transcribed": [.en: "Transcribed", .ko: "전사 완료"],
         "detail.badge.transcribing": [.en: "Transcribing", .ko: "전사 중"],
         "detail.badge.retryNeeded": [.en: "Retry Needed", .ko: "재시도 필요"],
-        "detail.badge.reviewNeeded": [.en: "Review Needed", .ko: "검토 필요"],
         "detail.live.waitingLabel": [.en: "Waiting for live transcript", .ko: "실시간 전사 대기"],
         "detail.live.label": [.en: "Live Transcript", .ko: "실시간 전사"],
         "detail.live.placeholder": [
@@ -171,6 +169,7 @@ enum L10n {
         "detail.transport.help.seekForward": [.en: "Forward 10 seconds", .ko: "10초 앞으로"],
         "detail.transport.help.stopRecording": [.en: "Stop Recording", .ko: "녹음 정지"],
         "detail.transport.help.pause": [.en: "Pause", .ko: "일시정지"],
+        "detail.transport.position": [.en: "Playback Position", .ko: "재생 위치"],
         "detail.transport.help.play": [.en: "Play", .ko: "재생"],
         "detail.transcribing.message": [
             .en: "The local model is organizing the audio into Markdown.",
@@ -182,7 +181,7 @@ enum L10n {
         "sidebar.allRecordings": [.en: "All Recordings", .ko: "모든 녹음 항목"],
         "sidebar.countSuffix": [.en: "%d items", .ko: "%d개"],
         "sidebar.searching": [.en: "Search Results", .ko: "검색 결과"],
-        "sidebar.library": [.en: "Library", .ko: "라이브러리"],
+        "sidebar.search.clear": [.en: "Clear Search", .ko: "검색어 지우기"],
         "sidebar.search.placeholder": [.en: "Search", .ko: "검색"],
         "sidebar.newRecording": [.en: "New Recording", .ko: "새 녹음"],
         "sidebar.bottomStatus.recording": [.en: "Recording", .ko: "기록 중"],
@@ -193,6 +192,10 @@ enum L10n {
         "sidebar.empty.noResults": [.en: "No Results", .ko: "검색 결과 없음"],
         "sidebar.empty.noRecordings": [.en: "No Recordings", .ko: "녹음 없음"],
         "sidebar.empty.startHint": [.en: "to start your first recording", .ko: "으로 첫 녹음을 시작하세요"],
+
+        // MARK: Accessibility announcements
+        "a11y.transcription.done": [.en: "Transcription complete", .ko: "전사가 완료되었습니다"],
+        "a11y.transcription.failed": [.en: "Transcription failed", .ko: "전사에 실패했습니다"],
 
         // MARK: Controls
         "controls.recordButton.stop": [.en: "Stop Recording", .ko: "녹음 종료"],

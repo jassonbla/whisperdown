@@ -23,6 +23,8 @@ struct SidebarView: View {
         displayCount ?? recordings.count
     }
 
+    @FocusState private var isListFocused: Bool
+
     var body: some View {
         VStack(spacing: 0) {
             sidebarHeader
@@ -31,31 +33,7 @@ struct SidebarView: View {
                 EmptyRecordingsView(isSearching: isSearching)
                     .frame(maxHeight: .infinity)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: Spacing.xs / 2) {
-                        SidebarSectionHeader(title: L10n.t("sidebar.recentItems", language))
-
-                        ForEach(recordings) { recording in
-                            RecordingRow(
-                                recording: recording,
-                                isSelected: selectedRecordingID == recording.id,
-                                isActivelyProcessing: isProcessing && recording.status == .processing
-                            ) {
-                                selectedRecordingID = recording.id
-                            }
-                            .contextMenu {
-                                Button(L10n.t("action.delete", language), role: .destructive) {
-                                    onDeleteRequested(recording)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.top, 0)
-                    .padding(.bottom, Spacing.sm)
-                    .background(OverlayScrollerConfigurator())
-                }
-                .scrollIndicators(.hidden)
+                recordingList
             }
 
             bottomRecorder
@@ -68,38 +46,89 @@ struct SidebarView: View {
         }
     }
 
+    /// 목록 전체가 Tab 정지점 하나다. 포커스가 들어오면 ↑/↓가 선택을 옮긴다 —
+    /// 행마다 Tab을 누르지 않는다(로빙 포커스).
+    private var recordingList: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    SidebarSectionHeader(title: L10n.t(isSearching ? "sidebar.searching" : "sidebar.recentItems", language))
+
+                    ForEach(recordings) { recording in
+                        RecordingRow(
+                            recording: recording,
+                            isSelected: selectedRecordingID == recording.id,
+                            isActivelyProcessing: isProcessing && recording.status == .processing,
+                            isListFocused: isListFocused
+                        ) {
+                            selectedRecordingID = recording.id
+                            isListFocused = true
+                        }
+                        .contextMenu {
+                            Button(L10n.t("action.delete", language), role: .destructive) {
+                                onDeleteRequested(recording)
+                            }
+                        }
+                    }
+                }
+                .padding(.bottom, Spacing.sm)
+                .background(OverlayScrollerConfigurator())
+            }
+            .scrollIndicators(.hidden)
+            .focusable(true, interactions: .edit)
+            .focusEffectDisabled()
+            .focused($isListFocused)
+            .onMoveCommand { direction in
+                moveSelection(direction, proxy: proxy)
+            }
+            .accessibilityLabel(L10n.t("sidebar.allRecordings", language))
+        }
+    }
+
+    private func moveSelection(_ direction: MoveCommandDirection, proxy: ScrollViewProxy) {
+        guard !recordings.isEmpty else { return }
+
+        // 선택이 없거나 필터로 사라졌으면 상세 화면이 보여주는 첫 행을 기준으로 삼는다.
+        let current = recordings.firstIndex { $0.id == selectedRecordingID } ?? 0
+        let next: Int
+        switch direction {
+        case .up:
+            next = max(0, current - 1)
+        case .down:
+            next = min(recordings.count - 1, current + 1)
+        default:
+            return
+        }
+
+        let id = recordings[next].id
+        selectedRecordingID = id
+        proxy.scrollTo(id)
+    }
+
     private var sidebarHeader: some View {
         VStack(spacing: 0) {
             sidebarTitleBar
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(L10n.t("sidebar.allRecordings", language))
-                            .font(Typography.headline)
-                            .foregroundStyle(Palette.label.opacity(0.92))
-                        HStack(spacing: 0) {
-                            Text("Whisperdown · ")
-                                .font(AppTypography.meta)
-                            Text(String(format: L10n.t("sidebar.countSuffix", language), recordingCount))
-                                .font(AppTypography.meta)
-                        }
-                        .foregroundStyle(Palette.secondaryLabel)
-                    }
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                    Text(L10n.t("sidebar.allRecordings", language))
+                        .font(Typography.headline)
+                        .foregroundStyle(Palette.label)
 
-                    Spacer()
+                    Spacer(minLength: Spacing.sm)
+
+                    Text(String(format: L10n.t("sidebar.countSuffix", language), recordingCount))
+                        .font(AppTypography.meta)
+                        .foregroundStyle(Palette.tertiaryLabel)
+                }
+
+                SidebarSearchField(text: $searchText) {
+                    isListFocused = true
                 }
             }
-            .padding(.horizontal, Spacing.lg)
-            .padding(.top, AppLayout.sidebarContentTopInset)
-            .padding(.bottom, 10)
-
-            VStack(spacing: Spacing.sm) {
-                SidebarLibraryRow(count: recordingCount, isSearching: isSearching)
-                SidebarSearchField(text: $searchText)
-            }
             .padding(.horizontal, Spacing.md)
-            .padding(.top, 2)
+            .padding(.top, AppLayout.sidebarContentTopInset)
+            .padding(.bottom, Spacing.sm)
         }
     }
 
@@ -132,20 +161,19 @@ struct SidebarView: View {
 
                     Spacer(minLength: Spacing.sm)
 
-                    ProgressView(value: fraction)
-                        .progressViewStyle(.linear)
+                    LinearProgressBar(value: fraction)
                         .frame(width: 56)
                 }
                 .padding(.horizontal, Spacing.md)
                 .frame(height: 26)
-                .background(Palette.bg2.opacity(0.6))
+                .background(Palette.bg2)
             }
 
             HStack(spacing: Spacing.sm) {
                 RecordButton(
                     isRecording: isRecording,
                     isProcessing: isProcessing,
-                    size: 28,
+                    size: AppMetric.primaryActionSize,
                     action: onRecordTapped
                 )
 
@@ -156,7 +184,7 @@ struct SidebarView: View {
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                     Text(bottomStatusText)
-                        .font(Typography.caption)
+                        .font(AppTypography.meta)
                         .foregroundStyle(Palette.secondaryLabel)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
@@ -171,27 +199,10 @@ struct SidebarView: View {
                 }
             }
             .padding(.horizontal, Spacing.md)
-            .padding(.top, Spacing.sm)
-            .padding(.bottom, Spacing.sm)
-            .background(alignment: .top) {
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Palette.primary.opacity(0.018),
-                                Palette.primary.opacity(0.006),
-                                .clear
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(height: Spacing.lg)
-                    .allowsHitTesting(false)
-            }
+            .frame(height: AppMetric.bottomBarHeight)
             .overlay(alignment: .top) {
                 Rectangle()
-                    .fill(Palette.separator.opacity(0.48))
+                    .fill(Color.hairline)
                     .frame(height: 1)
                     .allowsHitTesting(false)
             }
@@ -218,57 +229,27 @@ struct SidebarSurface: View {
     }
 }
 
-private struct SidebarLibraryRow: View {
-    @Environment(\.appLanguage) private var language
-
-    let count: Int
-    let isSearching: Bool
-
-    var body: some View {
-        HStack(spacing: Spacing.sm) {
-            Image(systemName: isSearching ? "magnifyingglass" : "mic")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Palette.primary.opacity(0.78))
-                .frame(width: 20, height: 20)
-
-            Text(isSearching ? L10n.t("sidebar.searching", language) : L10n.t("sidebar.library", language))
-                .font(Typography.emphasis)
-                .foregroundStyle(Palette.label.opacity(0.86))
-
-            Spacer(minLength: 6)
-
-            Text("\(count)")
-                .font(AppTypography.meta)
-                .monospacedDigit()
-                .foregroundStyle(Palette.secondaryLabel)
-        }
-        .padding(.horizontal, Spacing.sm)
-        .frame(height: 36)
-        .background(Color.appSurface, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                .strokeBorder(Color.hairline, lineWidth: 1)
-        }
-    }
-}
-
 private struct SidebarSectionHeader: View {
     let title: String
 
     var body: some View {
-        Text(title)
-            .font(Typography.caption)
+        Text(title.uppercased())
+            .font(Typography.overline)
+            .tracking(0.6)
             .foregroundStyle(Palette.tertiaryLabel)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Spacing.lg)
-            .padding(.top, 14)
+            .padding(.horizontal, Spacing.md)
+            .padding(.top, Spacing.md)
             .padding(.bottom, Spacing.sm)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
 private struct SidebarSearchField: View {
     @Environment(\.appLanguage) private var language
     @Binding var text: String
+    /// ↓ — 검색 필드에서 결과 목록으로 내려간다.
+    let onMoveDown: () -> Void
 
     @FocusState private var isFocused: Bool
 
@@ -277,103 +258,110 @@ private struct SidebarSearchField: View {
             Image(systemName: "magnifyingglass")
                 .font(Typography.caption)
                 .foregroundStyle(Palette.tertiaryLabel)
+                .accessibilityHidden(true)
 
             TextField(L10n.t("sidebar.search.placeholder", language), text: $text)
                 .textFieldStyle(.plain)
                 .font(Typography.body)
                 .foregroundStyle(Palette.label)
                 .focused($isFocused)
+                .onKeyPress(.downArrow) {
+                    onMoveDown()
+                    return .handled
+                }
                 .onReceive(NotificationCenter.default.publisher(for: .focusSearchRequested)) { _ in
                     isFocused = true
                 }
 
             if !text.isEmpty {
-                Button {
+                IconButton(
+                    systemName: "xmark",
+                    label: L10n.t("sidebar.search.clear", language),
+                    size: 20,
+                    iconSize: 9
+                ) {
                     text = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.tertiaryLabel)
                 }
-                .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, Spacing.sm)
-        .frame(height: 32)
+        .padding(.leading, Spacing.sm)
+        .padding(.trailing, text.isEmpty ? Spacing.sm : Spacing.xs)
+        .frame(height: AppMetric.controlHeight)
         .background(Color.searchBackground, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                .strokeBorder(Color.hairline, lineWidth: 1)
+                .strokeBorder(isFocused ? Palette.label : Color.controlBorder, lineWidth: 1)
         }
     }
 }
 
+/// 목록 행. 버튼이 아니라 목록(`recordingList`)의 선택 항목이다 — 키보드 포커스는 목록이 갖는다.
 private struct RecordingRow: View {
     @Environment(\.appLanguage) private var language
 
     let recording: Recording
     let isSelected: Bool
     let isActivelyProcessing: Bool
+    let isListFocused: Bool
     let action: () -> Void
 
     @State private var isHovering = false
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 0) {
+        HStack(spacing: Spacing.sm) {
+            statusIcon
+
+            VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: Spacing.sm) {
-                    statusIcon
+                    Text(recording.title)
+                        .font(isSelected ? Typography.emphasis : Typography.body)
+                        .foregroundStyle(titleColor)
+                        .lineLimit(1)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: Spacing.sm) {
-                            Text(recording.title)
-                                .font(isSelected ? Typography.emphasis : Typography.body)
-                                .foregroundStyle(titleColor)
-                                .lineLimit(1)
+                    Spacer(minLength: 6)
 
-                            Spacer(minLength: 6)
-
-                            HStack(spacing: 6) {
-                                if isActivelyProcessing {
-                                    CircularProcessingIndicator()
-                                        .frame(width: 12, height: 12)
-                                }
-
-                                durationLabel
-                            }
+                    HStack(spacing: 6) {
+                        if isActivelyProcessing {
+                            CircularProcessingIndicator()
+                                .frame(width: 12, height: 12)
                         }
 
-                        HStack(spacing: Spacing.xs) {
-                            subtitle
-
-                            Spacer(minLength: 6)
-                        }
-                        .font(Typography.caption)
+                        durationLabel
                     }
                 }
-                .padding(.vertical, Spacing.xs)
-                .frame(minHeight: AppMetric.rowMinHeight)
+
+                HStack(spacing: Spacing.xs) {
+                    subtitle
+
+                    Spacer(minLength: 6)
+                }
+                .font(Typography.caption)
             }
-            .background {
-                RoundedRectangle(cornerRadius: AppRadius.row, style: .continuous)
-                    .fill(rowBackground)
-            }
-            .shadow(color: rowShadowColor, radius: isSelected ? 3 : 0, x: 0, y: isSelected ? 1 : 0)
-            .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.row, style: .continuous)
-                    .strokeBorder(isSelected ? Color.rowSelectionStroke : Color.clear, lineWidth: 1)
-            }
-            .contentShape(RoundedRectangle(cornerRadius: AppRadius.row, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, Spacing.xs)
+        .padding(.horizontal, Spacing.md)
+        .frame(minHeight: AppMetric.rowMinHeight)
+        .background(rowBackground)
+        // 선택 표시는 배경색만으로 전달하지 않는다 — 선두 막대가 비색상 단서.
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(isSelected ? (isListFocused ? Palette.label : Palette.input) : Color.clear)
+                .frame(width: 2)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: action)
         .onHover { isHovering = $0 }
+        .animation(MotionToken.quick, value: isHovering)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction(.default, action)
     }
 
     private var durationLabel: some View {
         Text(AppFormatters.duration(recording.duration))
             .font(AppTypography.duration)
             .monospacedDigit()
-            .foregroundStyle(Palette.secondaryLabel.opacity(isSelected ? 0.88 : 0.76))
+            .foregroundStyle(Palette.tertiaryLabel)
             .frame(height: 18)
     }
 
@@ -385,20 +373,12 @@ private struct RecordingRow: View {
                 Text(L10n.t("sidebar.bottomStatus.transcribing", language))
                     .foregroundStyle(Palette.secondaryLabel)
             } else {
-                HStack(spacing: 3) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 9, weight: .semibold))
-                    Text(L10n.t("detail.badge.retryNeeded", language))
-                }
-                .foregroundStyle(Palette.warning.opacity(0.82))
+                Text(L10n.t("detail.badge.retryNeeded", language))
+                    .foregroundStyle(Palette.warning)
             }
         case .failed:
-            HStack(spacing: 3) {
-                Image(systemName: "exclamationmark.circle.fill")
-                    .font(.system(size: 9, weight: .semibold))
-                Text(L10n.t("sidebar.row.reviewNeeded", language))
-            }
-            .foregroundStyle(Palette.warning.opacity(0.82))
+            Text(L10n.t("sidebar.row.reviewNeeded", language))
+                .foregroundStyle(Palette.warning)
         case .ready:
             Text(AppFormatters.listTime.string(from: recording.createdAt))
                 .font(AppTypography.listMeta)
@@ -407,89 +387,36 @@ private struct RecordingRow: View {
     }
 
     private var statusIcon: some View {
-        Group {
-            if recording.status == .failed || isStalledProcessing {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(iconBackground)
-                        .frame(width: 18, height: 18)
-
-                    Image(systemName: iconName)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(iconForeground)
-                }
-            } else {
-                Image(systemName: iconName)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(iconForeground)
-                    .frame(width: 18, height: 18)
-            }
-        }
-        .frame(width: 20, height: 20)
+        Image(systemName: needsAttention ? "exclamationmark.triangle" : "waveform")
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(iconForeground)
+            // 글리프를 헤더·검색 필드와 같은 선두 선(12pt)에 붙인다.
+            .frame(width: 16, height: 16, alignment: .leading)
+            .accessibilityHidden(true)
     }
 
-    private var rowBackground: some ShapeStyle {
-        if isSelected {
-            return AnyShapeStyle(Color.rowSelectionBackground)
+    private var rowBackground: Color {
+        if isSelected || isHovering {
+            return Palette.bg2
         }
 
-        if isHovering {
-            return AnyShapeStyle(Color.controlSurface.opacity(0.44))
-        }
-
-        return AnyShapeStyle(Color.clear)
+        return Color.clear
     }
 
-    private var rowShadowColor: Color {
-        .clear
-    }
-
-    private var iconBackground: Color {
-        switch recording.status {
-        case .processing:
-            return isActivelyProcessing ? Palette.primary.opacity(0.08) : Palette.dangerBackground
-        case .failed:
-            return Palette.dangerBackground
-        case .ready:
-            return Color.clear
-        }
-    }
-
-    private var iconName: String {
-        switch recording.status {
-        case .processing:
-            return isActivelyProcessing ? "waveform" : "exclamationmark"
-        case .failed:
-            return "exclamationmark"
-        case .ready:
-            return "waveform"
-        }
+    private var needsAttention: Bool {
+        recording.status == .failed || (recording.status == .processing && !isActivelyProcessing)
     }
 
     private var iconForeground: Color {
-        switch recording.status {
-        case .processing:
-            return isActivelyProcessing ? Palette.primary.opacity(0.78) : Palette.warning.opacity(0.92)
-        case .failed:
-            return Palette.warning.opacity(0.92)
-        case .ready:
-            return isSelected ? Palette.primary.opacity(0.76) : Palette.secondaryLabel.opacity(0.72)
+        if needsAttention {
+            return Palette.warning
         }
+
+        return isSelected ? Palette.label : Palette.tertiaryLabel
     }
 
     private var titleColor: Color {
-        switch recording.status {
-        case .failed:
-            return Palette.destructive
-        case .processing:
-            return isActivelyProcessing ? Palette.label.opacity(isSelected ? 0.96 : 0.84) : Palette.destructive
-        case .ready:
-            return Palette.label.opacity(isSelected ? 0.96 : 0.84)
-        }
-    }
-
-    private var isStalledProcessing: Bool {
-        recording.status == .processing && !isActivelyProcessing
+        needsAttention ? Palette.destructive : Palette.label
     }
 }
 
@@ -500,9 +427,10 @@ private struct EmptyRecordingsView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Image(systemName: "waveform.circle")
-                .font(.system(size: 28, weight: .semibold))
+            Image(systemName: "waveform")
+                .font(.system(size: 20, weight: .regular))
                 .foregroundStyle(Palette.tertiaryLabel)
+                .accessibilityHidden(true)
 
             Text(isSearching ? L10n.t("sidebar.empty.noResults", language) : L10n.t("sidebar.empty.noRecordings", language))
                 .font(Typography.emphasis)
@@ -515,7 +443,10 @@ private struct EmptyRecordingsView: View {
                         .foregroundStyle(Palette.secondaryLabel)
                         .padding(.horizontal, 5)
                         .frame(height: 18)
-                        .background(Palette.bg2, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                                .strokeBorder(Color.controlBorder, lineWidth: 1)
+                        }
 
                     Text(L10n.t("sidebar.empty.startHint", language))
                         .font(Typography.caption)
@@ -533,7 +464,7 @@ struct CircularProcessingIndicator: View {
         Circle()
             .trim(from: 0.16, to: 0.82)
             .stroke(
-                Palette.secondaryLabel.opacity(0.64),
+                Palette.secondaryLabel,
                 style: StrokeStyle(lineWidth: 1.4, lineCap: .round)
             )
             .rotationEffect(.degrees(rotation))

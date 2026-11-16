@@ -100,15 +100,16 @@ struct DesignPreviewRootView: View {
                         0.15 + abs(sin(Double($0) * 0.35)) * scenario.level
                     },
                     liveTranscript: scenario.liveTranscript,
-                    playbackElapsed: selectedRecording?.duration ?? 0,
+                    playbackElapsed: (selectedRecording?.duration ?? 0) * 0.35,
                     isPlaybackPlaying: false,
                     onRecordTapped: {},
                     onPlayPauseTapped: {},
                     onSeekBackward: {},
                     onSeekForward: {},
+                    onScrubPlayback: { _ in },
                     onRetryTranscription: { _ in },
                     onOpenFolder: {},
-                    onChooseFolder: {},
+                    onOpenSettings: {},
                     initialShowsRawMarkdown: scenario == .raw,
                     summaryPhase: scenario == .summarizing ? .running : nil,
                     isGlossaryPanelOpen: scenario == .glossary
