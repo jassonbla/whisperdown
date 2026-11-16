@@ -28,12 +28,7 @@ extension View {
         modifier(WindowShellModifier())
     }
 
-    /// 캡슐 서피스. 라이트 = 불투명 서피스 + 헤어라인, 다크 = 미묘한 material glass + 헤어라인.
-    func glassCapsule() -> some View {
-        modifier(GlassCapsuleModifier())
-    }
-
-    /// 목업의 `@keyframes recpulse` 대응: opacity 1↔0.45, scale 1↔0.82 (1.4s 주기)
+    /// 녹음 중 맥동: opacity 1↔0.45, scale 1↔0.82 (1.4s 주기). 동작 줄이기 설정 시 정지.
     func recPulse() -> some View {
         modifier(RecPulseModifier())
     }
@@ -55,27 +50,8 @@ private struct WindowShellModifier: ViewModifier {
     }
 }
 
-private struct GlassCapsuleModifier: ViewModifier {
-    @Environment(\.colorScheme) private var colorScheme
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-                if colorScheme == .dark {
-                    Capsule().fill(.ultraThinMaterial)
-                    Capsule().fill(Color.appSurface.opacity(0.4))
-                } else {
-                    Capsule().fill(Color.appSurface)
-                }
-            }
-            .overlay {
-                Capsule()
-                    .strokeBorder(Color.hairline, lineWidth: 1)
-            }
-    }
-}
-
 private struct RecPulseModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isPulsing = false
 
     func body(content: Content) -> some View {
@@ -83,6 +59,6 @@ private struct RecPulseModifier: ViewModifier {
             .opacity(isPulsing ? 0.45 : 1)
             .scaleEffect(isPulsing ? 0.82 : 1)
             .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: isPulsing)
-            .onAppear { isPulsing = true }
+            .onAppear { isPulsing = !reduceMotion }
     }
 }

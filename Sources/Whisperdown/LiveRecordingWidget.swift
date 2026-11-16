@@ -10,7 +10,10 @@ struct LiveRecordingWidget: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            RecordingPulseDot()
+            Circle()
+                .fill(Palette.destructive)
+                .frame(width: 9, height: 9)
+                .recPulse()
 
             Text(AppFormatters.duration(elapsed))
                 .font(Typography.mono)
@@ -26,20 +29,15 @@ struct LiveRecordingWidget: View {
                     .opacity(isHovering ? 0 : 1)
 
                 Button(action: onStop) {
-                    ZStack {
-                        Circle()
-                            .fill(Palette.label)
-
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(Palette.background)
-                            .frame(width: 8, height: 8)
-                    }
-                    .frame(width: 22, height: 22)
+                    Rectangle()
+                        .frame(width: 8, height: 8)
+                        .frame(width: 22, height: 22)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ControlButtonStyle(variant: .solid, height: nil))
                 .opacity(isHovering ? 1 : 0)
                 .allowsHitTesting(isHovering)
                 .help(L10n.t("controls.recordButton.stop", language))
+                .accessibilityLabel(L10n.t("controls.recordButton.stop", language))
             }
             .frame(width: 22, height: 22)
             .animation(.easeOut(duration: 0.16), value: isHovering)
@@ -47,36 +45,16 @@ struct LiveRecordingWidget: View {
         .padding(.leading, 12)
         .padding(.trailing, 12)
         .frame(width: 116, height: 38)
-        .background(Palette.background, in: Capsule())
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous))
         .overlay {
-            Capsule()
-                .strokeBorder(Color.panelStroke, lineWidth: 1)
+            RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous)
+                .strokeBorder(Color.controlBorder, lineWidth: 1)
         }
         .shadow(color: Color.black.opacity(0.35), radius: 12, x: 0, y: 8)
         .onHover { isHovering = $0 }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(L10n.t("sidebar.bottomStatus.recording", language))
         .accessibilityValue(AppFormatters.duration(elapsed))
-    }
-}
-
-private struct RecordingPulseDot: View {
-    @State private var isPulsing = false
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(Palette.destructive)
-                .frame(width: 9, height: 9)
-                .opacity(isPulsing ? 0.45 : 1)
-                .scaleEffect(isPulsing ? 0.82 : 1, anchor: .center)
-        }
-        .frame(width: 9, height: 9, alignment: .center)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
-                isPulsing = true
-            }
-        }
     }
 }
 
@@ -90,7 +68,7 @@ private struct PillWaveform: View {
     var body: some View {
         HStack(spacing: 3) {
             ForEach(0..<4, id: \.self) { index in
-                Capsule()
+                Rectangle()
                     .fill(Palette.tertiaryLabel)
                     .frame(width: 2, height: 16)
                     .scaleEffect(y: max(0.2, 0.2 + level * Self.phaseOffsets[index]))

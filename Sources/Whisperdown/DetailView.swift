@@ -25,9 +25,11 @@ struct DetailView: View {
     let onPlayPauseTapped: () -> Void
     let onSeekBackward: () -> Void
     let onSeekForward: () -> Void
+    /// 진행 막대를 누르거나 끌 때 호출된다(0...1).
+    let onScrubPlayback: (Double) -> Void
     let onRetryTranscription: (Recording) -> Void
     let onOpenFolder: () -> Void
-    let onChooseFolder: () -> Void
+    let onOpenSettings: () -> Void
     /// 스냅샷 시나리오용 초기값 — 런타임 토글은 rawMarkdownOverride가 담당.
     var initialShowsRawMarkdown: Bool = false
     var summaryPhase: SummaryPhase? = nil
@@ -55,7 +57,7 @@ struct DetailView: View {
                 .frame(maxWidth: AppMetric.transcriptMaxWidth, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.horizontal, AppLayout.detailHorizontalPadding)
-                .padding(.top, 26)
+                .padding(.top, AppMetric.contentTopInset)
                 .padding(.bottom, Spacing.xl)
                 .background(OverlayScrollerConfigurator())
             }
@@ -72,59 +74,69 @@ struct DetailView: View {
 
     private var topBar: some View {
         HStack(spacing: Spacing.sm) {
-            Button {
-                NotificationCenter.default.post(name: .openEngineSetupRequested, object: nil)
-            } label: {
-                ModeBadge(title: modeBadgeTitle, systemName: modeBadgeIcon)
-            }
-            .buttonStyle(.plain)
-            .help(L10n.t("detail.help.engineSettings", language))
+            // 엔진 상태는 읽기 전용 라벨이다. 설정으로 가는 길은 톱니바퀴 하나뿐이다.
+            ModeBadge(title: modeBadgeTitle, systemName: modeBadgeIcon)
 
             Spacer()
 
+            // 왼쪽 묶음 = 선택한 녹음에 대한 동작, 구분선 오른쪽 = 앱 전역 동작.
             HStack(spacing: Spacing.xs) {
                 if let recording, recording.status == .ready, !isRecording, !isProcessing {
                     if canGenerateSummary, recording.summary == nil, summaryPhase != .running {
-                        IconButton(systemName: "sparkles") {
+                        IconButton(systemName: "sparkles", label: L10n.t("detail.help.generateSummary", language)) {
                             onGenerateSummary(recording)
                         }
-                        .help(L10n.t("detail.help.generateSummary", language))
                     }
 
+                    // 토글: 아이콘과 이름은 고정하고 켜짐 상태만 바꾼다.
                     IconButton(
-                        systemName: showsRawMarkdown ? "text.bubble" : "doc.plaintext",
+                        systemName: "doc.plaintext",
+                        label: L10n.t("detail.help.showRawMarkdown", language),
                         isActive: showsRawMarkdown
                     ) {
                         rawMarkdownOverride = !showsRawMarkdown
                     }
-                    .help(L10n.t(showsRawMarkdown ? "detail.help.showSegments" : "detail.help.showRawMarkdown", language))
 
-                    IconButton(systemName: didCopyMarkdown ? "checkmark" : "doc.on.doc") {
+                    IconButton(
+                        systemName: didCopyMarkdown ? "checkmark" : "doc.on.doc",
+                        label: L10n.t(didCopyMarkdown ? "detail.help.copied" : "detail.help.copyMarkdown", language)
+                    ) {
                         copyMarkdown(for: recording)
                     }
-                    .help(L10n.t(didCopyMarkdown ? "detail.help.copied" : "detail.help.copyMarkdown", language))
 
-                    IconButton(systemName: "arrow.up.right.square") {
-                        revealInFinder(for: recording)
-                    }
-                    .help(L10n.t("detail.help.revealInFinder", language))
-
-                    IconButton(systemName: "arrow.clockwise") {
+                    IconButton(systemName: "arrow.clockwise", label: L10n.t("detail.help.retranscribe", language)) {
                         onRetryTranscription(recording)
                     }
-                    .help(L10n.t("detail.help.retryTranscription", language))
+
+                    Rectangle()
+                        .fill(Color.hairline)
+                        .frame(width: 1, height: 16)
+                        .padding(.horizontal, Spacing.xs)
                 }
-                IconButton(systemName: "character.book.closed", isActive: isGlossaryPanelOpen) {
+
+                // 폴더 아이콘은 항상 Finder로 간다 — 준비된 녹음이 있으면 그 파일을 선택해 보여 준다.
+                if let recording, recording.status == .ready {
+                    IconButton(systemName: "folder", label: L10n.t("detail.help.revealInFinder", language)) {
+                        revealInFinder(for: recording)
+                    }
+                } else {
+                    IconButton(systemName: "folder", label: L10n.t("detail.help.openMarkdownFolder", language), action: onOpenFolder)
+                }
+
+                IconButton(
+                    systemName: "character.book.closed",
+                    label: L10n.t("detail.help.toggleGlossary", language),
+                    isActive: isGlossaryPanelOpen
+                ) {
                     NotificationCenter.default.post(name: .toggleGlossaryPanelRequested, object: nil)
                 }
-                .help(L10n.t("detail.help.toggleGlossary", language))
-                IconButton(systemName: "folder", action: onOpenFolder)
-                    .help(L10n.t("detail.help.openMarkdownFolder", language))
-                IconButton(systemName: "gearshape", action: onChooseFolder)
-                    .help(L10n.t("detail.help.chooseFolder", language))
+
+                IconButton(systemName: "gearshape", label: L10n.t("detail.help.openSettings", language), action: onOpenSettings)
             }
         }
-        .padding(.horizontal, Spacing.lg)
+        // 배지(테두리 있음)는 박스를, ghost 아이콘은 글리프를 본문 여백 선에 맞춘다.
+        .padding(.leading, AppLayout.detailHorizontalPadding)
+        .padding(.trailing, AppLayout.detailHorizontalPadding - AppMetric.iconButtonGlyphInset)
         .frame(height: AppLayout.titleBarHeight)
         .background(Color.appSurface)
         .overlay(alignment: .bottom) {
@@ -135,50 +147,14 @@ struct DetailView: View {
         }
     }
 
+    /// 라벨은 앱의 전사 엔진 상태만 말한다. 녹음별 상태(녹음 중·전사 중·검토 필요)는
+    /// 제목·본문·사이드바가 이미 보여 주므로 여기서 반복하지 않는다.
     private var modeBadgeTitle: String {
-        if isRecording {
-            return L10n.t("detail.badge.recording", language)
-        }
-
-        if !isWhisperReady {
-            return L10n.t("detail.badge.appleSpeechTemp", language)
-        }
-
-        guard let recording else {
-            return "Voice"
-        }
-
-        switch recording.status {
-        case .ready:
-            return recording.engineNote.contains("whisper.cpp") ? L10n.t("detail.badge.whisperLocal", language) : L10n.t("detail.badge.transcribed", language)
-        case .processing:
-            return isProcessing ? L10n.t("detail.badge.transcribing", language) : L10n.t("detail.badge.retryNeeded", language)
-        case .failed:
-            return L10n.t("detail.badge.reviewNeeded", language)
-        }
+        L10n.t(isWhisperReady ? "detail.badge.whisperLocal" : "detail.badge.appleSpeechTemp", language)
     }
 
     private var modeBadgeIcon: String {
-        if isRecording {
-            return "record.circle"
-        }
-
-        if !isWhisperReady {
-            return "exclamationmark.circle"
-        }
-
-        guard let recording else {
-            return "waveform"
-        }
-
-        switch recording.status {
-        case .ready:
-            return "checkmark.circle"
-        case .processing:
-            return isProcessing ? "waveform" : "exclamationmark.circle"
-        case .failed:
-            return "exclamationmark.circle"
-        }
+        isWhisperReady ? "checkmark" : "exclamationmark.triangle"
     }
 
     @ViewBuilder
@@ -204,7 +180,7 @@ struct DetailView: View {
         if recording.status == .ready, FileManager.default.fileExists(atPath: recording.markdownURL.path) {
             title
                 .onDrag { NSItemProvider(contentsOf: recording.markdownURL) ?? NSItemProvider() }
-                .help(L10n.t("detail.help.dragMarkdown", language))
+                .tooltip(L10n.t("detail.help.dragMarkdown", language))
         } else {
             title
         }
@@ -246,31 +222,25 @@ struct DetailView: View {
                 if isProcessing {
                     processingView
                 } else {
-                    VStack(spacing: Spacing.md) {
-                        CenterStatusView(
-                            systemName: "exclamationmark.triangle.fill",
-                            title: L10n.t("detail.status.interrupted.title", language),
-                            message: L10n.t("detail.status.interrupted.message", language),
-                            tint: Palette.warning
-                        )
-
+                    CenterStatusView(
+                        systemName: "exclamationmark.triangle",
+                        title: L10n.t("detail.status.interrupted.title", language),
+                        message: L10n.t("detail.status.interrupted.message", language),
+                        tint: Palette.warning
+                    ) {
                         retryButton(for: recording)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 280)
                 }
 
             case .failed:
-                VStack(spacing: Spacing.md) {
-                    CenterStatusView(
-                        systemName: "exclamationmark.triangle.fill",
-                        title: L10n.t("detail.status.reviewNeeded.title", language),
-                        message: recording.engineNote,
-                        tint: Palette.warning
-                    )
-
+                CenterStatusView(
+                    systemName: "exclamationmark.triangle",
+                    title: L10n.t("detail.status.reviewNeeded.title", language),
+                    message: recording.engineNote,
+                    tint: Palette.warning
+                ) {
                     retryButton(for: recording)
                 }
-                .frame(maxWidth: .infinity, minHeight: 280)
 
             case .ready:
                 VStack(alignment: .leading, spacing: Spacing.md) {
@@ -295,7 +265,7 @@ struct DetailView: View {
             processingView
         } else {
             CenterStatusView(
-                systemName: "waveform.circle",
+                systemName: "waveform",
                 title: L10n.t("detail.status.noRecording.title", language),
                 message: L10n.t("detail.status.noRecording.message", language),
                 tint: Palette.secondaryLabel
@@ -368,6 +338,8 @@ struct DetailView: View {
         withAnimation(MotionToken.quick) {
             didCopyMarkdown = true
         }
+        // 아이콘 변화만으로는 스크린 리더가 결과를 알 수 없다.
+        AccessibilityNotification.Announcement(L10n.t("detail.help.copied", language)).post()
         Task {
             try? await Task.sleep(nanoseconds: 1_400_000_000)
             withAnimation(MotionToken.quick) {
@@ -389,15 +361,9 @@ struct DetailView: View {
             onRetryTranscription(recording)
         } label: {
             Label(L10n.t("detail.retryTranscription", language), systemImage: "arrow.clockwise")
-                .font(Typography.emphasis)
-                .foregroundStyle(Palette.label.opacity(0.84))
-                .padding(.horizontal, Spacing.md)
-                .frame(height: 32)
-                .glassCapsule()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ControlButtonStyle())
         .disabled(isProcessing)
-        .opacity(isProcessing ? 0.45 : 1)
     }
 
     @ViewBuilder
@@ -415,11 +381,11 @@ struct DetailView: View {
                 isPlaybackPlaying: false,
                 onPlayPauseTapped: onRecordTapped,
                 onSeekBackward: onSeekBackward,
-                onSeekForward: onSeekForward
+                onSeekForward: onSeekForward,
+                onScrub: { _ in }
             )
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, AppLayout.detailHorizontalPadding)
-            .padding(.vertical, Spacing.sm)
             .overlay(alignment: .top) {
                 Rectangle()
                     .fill(Color.hairline)
@@ -443,11 +409,11 @@ struct DetailView: View {
                 isPlaybackPlaying: isPlaybackPlaying,
                 onPlayPauseTapped: onPlayPauseTapped,
                 onSeekBackward: onSeekBackward,
-                onSeekForward: onSeekForward
+                onSeekForward: onSeekForward,
+                onScrub: onScrubPlayback
             )
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, AppLayout.detailHorizontalPadding)
-            .padding(.vertical, Spacing.sm)
             .overlay(alignment: .top) {
                 Rectangle()
                     .fill(Color.hairline)
@@ -464,9 +430,9 @@ private struct ModeBadge: View {
 
     private var badgeIconColor: Color {
         switch systemName {
-        case "checkmark.circle":
+        case "checkmark":
             return Palette.success
-        case "exclamationmark.circle":
+        case "exclamationmark.triangle":
             return Palette.warning
         default:
             return Palette.secondaryLabel
@@ -474,29 +440,18 @@ private struct ModeBadge: View {
     }
 
     var body: some View {
-        HStack(spacing: Spacing.sm) {
+        HStack(spacing: 6) {
             Image(systemName: systemName)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(badgeIconColor)
-                .frame(width: 14, height: 14)
+                .accessibilityHidden(true)
 
             Text(title)
-                .font(Typography.caption)
-                .foregroundStyle(Palette.label.opacity(0.82))
+                .font(AppTypography.meta)
+                .foregroundStyle(Palette.secondaryLabel)
                 .lineLimit(1)
-
-            Image(systemName: "chevron.down")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(Palette.tertiaryLabel)
         }
-        .padding(.leading, Spacing.sm)
-        .padding(.trailing, 11)
-        .frame(height: AppMetric.searchHeight)
-        .background(Color.appSurface, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                .strokeBorder(Color.hairline, lineWidth: 1)
-        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -508,7 +463,8 @@ private struct RecordingTitle: View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             Text(title)
                 .font(Typography.title)
-                .foregroundStyle(Palette.label.opacity(0.94))
+                .tracking(-0.3)
+                .foregroundStyle(Palette.label)
                 .multilineTextAlignment(.leading)
                 .lineLimit(2)
 
@@ -533,6 +489,9 @@ private struct TransportDeck: View {
     let onPlayPauseTapped: () -> Void
     let onSeekBackward: () -> Void
     let onSeekForward: () -> Void
+    let onScrub: (Double) -> Void
+
+    @Environment(\.appLanguage) private var language
 
     var body: some View {
         HStack(spacing: Spacing.lg) {
@@ -540,19 +499,35 @@ private struct TransportDeck: View {
                 .font(AppTypography.timer)
                 .monospacedDigit()
                 .foregroundStyle(timeColor)
-                .frame(width: AppMetric.transportTimeWidth, alignment: .leading)
+                .lineLimit(1)
+                .fixedSize()
+                .frame(minWidth: AppMetric.transportTimeWidth, alignment: .leading)
 
-            WaveformView(
-                level: level,
-                isRecording: isRecording,
-                isPlaying: isPlaybackPlaying,
-                progress: duration > 0 ? min(1, elapsed / duration) : 0,
-                history: levelHistory,
-                showsTrack: false
-            )
-            .frame(height: AppMetric.waveformHeight)
+            // 녹음 중에는 실제 입력 파형, 그 밖에는 누르거나 끌어 위치를 옮기는 진행 막대.
+            Group {
+                if isRecording {
+                    WaveformView(
+                        level: level,
+                        isRecording: true,
+                        history: levelHistory,
+                        showsTrack: false
+                    )
+                    .frame(height: AppMetric.waveformHeight)
+                    .accessibilityHidden(true)
+                } else {
+                    ScrubBar(
+                        value: duration > 0 ? elapsed / duration : 0,
+                        label: L10n.t("detail.transport.position", language),
+                        valueText: "\(AppFormatters.duration(elapsed)) / \(AppFormatters.duration(duration))",
+                        onScrub: onScrub,
+                        onDecrement: onSeekBackward,
+                        onIncrement: onSeekForward
+                    )
+                    .disabled(!canUsePlayback)
+                }
+            }
             .frame(maxWidth: .infinity)
-            .opacity(isTransportAvailable ? 1 : 0.36)
+            .opacity(isTransportAvailable ? 1 : 0.5)
 
             TransportIsland(
                 isRecording: isRecording,
@@ -563,10 +538,9 @@ private struct TransportDeck: View {
                 onSeekBackward: onSeekBackward,
                 onSeekForward: onSeekForward
             )
-            .opacity(isTransportAvailable ? 1 : 0.54)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: AppMetric.transportCardHeight)
+        .frame(height: AppMetric.bottomBarHeight)
     }
 
     private var timeColor: Color {
@@ -574,7 +548,7 @@ private struct TransportDeck: View {
             return Palette.destructive
         }
 
-        return Palette.label.opacity(isTransportAvailable ? 0.92 : 0.36)
+        return isTransportAvailable ? Palette.label : Palette.tertiaryLabel
     }
 }
 
@@ -594,32 +568,39 @@ private struct TransportIsland: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            TransportIconButton(systemName: "gobackward.10", isDisabled: !canUsePlayback, action: onSeekBackward)
-                .help(L10n.t("detail.transport.help.seekBackward", language))
+        HStack(spacing: Spacing.xs) {
+            IconButton(
+                systemName: "gobackward.10",
+                label: L10n.t("detail.transport.help.seekBackward", language),
+                size: 32,
+                iconSize: 15,
+                action: onSeekBackward
+            )
+            .disabled(!canUsePlayback)
 
             Button(action: onPlayPauseTapped) {
-                ZStack {
-                    Circle()
-                        .fill(isRecording ? Palette.destructive : Palette.primary)
-                        .frame(width: 40, height: 40)
-
-                    Image(systemName: primaryIconName)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Palette.primaryForeground)
-                        .offset(x: (!isRecording && !isPlaybackPlaying) ? 1.5 : 0)
-                }
-                .frame(width: 40, height: 40)
+                Image(systemName: primaryIconName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(width: AppMetric.primaryActionSize, height: AppMetric.primaryActionSize)
             }
-            .buttonStyle(QuietButtonStyle())
+            .buttonStyle(ControlButtonStyle(variant: isRecording ? .destructiveSolid : .solid, height: nil))
             .disabled(isPrimaryDisabled)
-            .help(primaryHelpText)
+            .tooltip(primaryHelpText)
+            .accessibilityLabel(primaryHelpText)
             // Space = 재생/일시정지 (텍스트필드 포커스 시엔 시스템이 필드 입력 우선)
             .keyboardShortcut(.space, modifiers: [])
 
-            TransportIconButton(systemName: "goforward.10", isDisabled: !canUsePlayback, action: onSeekForward)
-                .help(L10n.t("detail.transport.help.seekForward", language))
+            IconButton(
+                systemName: "goforward.10",
+                label: L10n.t("detail.transport.help.seekForward", language),
+                size: 32,
+                iconSize: 15,
+                action: onSeekForward
+            )
+            .disabled(!canUsePlayback)
         }
+        // 마지막 ghost 버튼(32pt 박스, 16pt 글리프)의 글리프를 본문 여백 선에 맞춘다.
+        .padding(.trailing, -Spacing.sm)
     }
 
     private var primaryIconName: String {
@@ -636,33 +617,6 @@ private struct TransportIsland: View {
         }
 
         return canUsePlayback ? (isPlaybackPlaying ? L10n.t("detail.transport.help.pause", language) : L10n.t("detail.transport.help.play", language)) : L10n.t("sidebar.empty.noRecordings", language)
-    }
-}
-
-private struct TransportIconButton: View {
-    let systemName: String
-    var isDisabled = false
-    let action: () -> Void
-
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Palette.secondaryLabel)
-                .frame(width: 36, height: 36)
-                .background(
-                    isHovering && !isDisabled ? Color.controlSurface.opacity(0.56) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .animation(MotionToken.quick, value: isHovering)
-        }
-        .buttonStyle(QuietButtonStyle())
-        .disabled(isDisabled)
-        .opacity(isDisabled ? 0.45 : 1)
-        .contentShape(Circle())
-        .onHover { isHovering = $0 }
     }
 }
 
@@ -809,7 +763,7 @@ private struct TranscriptionStageListView: View {
         case .pending:
             ZStack {
                 Circle()
-                    .stroke(Palette.tertiaryLabel.opacity(0.55), lineWidth: 1)
+                    .stroke(Palette.input, lineWidth: 1)
                 Text("\((steps.firstIndex(of: step) ?? 0) + 1)")
                     .font(.system(size: 9, weight: .medium))
                     .monospacedDigit()
@@ -852,7 +806,7 @@ private struct TranscriptionStageListView: View {
                             AnimatedDots()
                         }
                         .font(Typography.emphasis)
-                        .foregroundStyle(Palette.label.opacity(0.9))
+                        .foregroundStyle(Palette.label)
 
                         if step == .stage(.transcribing), let transcriptionProgress {
                             TranscriptionProgressCaption(
@@ -892,8 +846,9 @@ private struct PartialTranscriptPreview: View {
                 Image(systemName: "text.quote")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Palette.tertiaryLabel)
-                Text(L10n.t("detail.partialTranscript.title", language))
-                    .font(Typography.caption)
+                Text(L10n.t("detail.partialTranscript.title", language).uppercased())
+                    .font(Typography.overline)
+                    .tracking(0.6)
                     .foregroundStyle(Palette.tertiaryLabel)
             }
 
@@ -906,9 +861,9 @@ private struct PartialTranscriptPreview: View {
                 .animation(MotionToken.quick, value: displayText)
         }
         .padding(Spacing.md)
-        .background(Color.appMuted, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Color.appMuted, in: RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: AppRadius.panel, style: .continuous)
                 .strokeBorder(Color.hairline, lineWidth: 1)
         }
         .frame(maxWidth: 280, alignment: .leading)
@@ -922,7 +877,7 @@ private struct DeterminateProgressRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Palette.tertiaryLabel.opacity(0.35), lineWidth: 1.4)
+                .stroke(Palette.strongSeparator, lineWidth: 1.4)
             Circle()
                 .trim(from: 0, to: max(0, min(1, fraction)))
                 .stroke(Palette.success, style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
@@ -988,80 +943,59 @@ private struct TranscriptionProgressCaption: View {
 private struct TranscriptSegmentView: View {
     let segment: SpeakerSegment
 
-    private var speakerTint: Color {
-        let normalized = segment.speaker.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
-        let palette: [Color] = [.teal, .indigo, Palette.warning, .pink, .mint]
-        let scalarTotal = normalized.unicodeScalars.reduce(0) { partial, scalar in
-            partial + Int(scalar.value)
-        }
-
-        return palette[abs(scalarTotal) % palette.count]
-    }
-
     var body: some View {
-        HStack(alignment: .top, spacing: Spacing.md) {
-            VStack(spacing: Spacing.sm) {
-                Circle()
-                    .fill(speakerTint.opacity(0.64))
-                    .frame(width: 6, height: 6)
-                    .shadow(color: speakerTint.opacity(0.10), radius: 4, x: 0, y: 1)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                Text(segment.speaker)
+                    .font(Typography.emphasis)
+                    .foregroundStyle(Palette.label)
 
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                speakerTint.opacity(0.12),
-                                speakerTint.opacity(0.026),
-                                .clear
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(width: 2, height: 44)
+                Text("\(AppFormatters.timestamp(segment.startTime)) – \(AppFormatters.timestamp(segment.endTime))")
+                    .font(AppTypography.meta)
+                    .foregroundStyle(Palette.tertiaryLabel)
             }
-            .frame(width: Spacing.lg)
-            .padding(.top, Spacing.sm)
 
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                HStack(spacing: Spacing.sm) {
-                    Text(segment.speaker)
-                        .font(Typography.emphasis)
-                        .foregroundStyle(Palette.label)
-
-                    Text("\(AppFormatters.timestamp(segment.startTime)) - \(AppFormatters.timestamp(segment.endTime))")
-                        .font(AppTypography.meta)
-                        .foregroundStyle(Palette.tertiaryLabel)
-                }
-
-                Text(segment.text)
-                    .font(AppTypography.transcript)
-                    .lineSpacing(5.5)
-                    .foregroundStyle(Palette.body)
-                    .textSelection(.enabled)
-            }
-            .padding(.bottom, Spacing.xs)
+            Text(segment.text)
+                .font(AppTypography.transcript)
+                .lineSpacing(5.5)
+                .foregroundStyle(Palette.body)
+                .textSelection(.enabled)
         }
-        .padding(.vertical, Spacing.xs / 2)
+        .padding(.leading, Spacing.md)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(Palette.separator)
+                .frame(width: 1)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
-private struct CenterStatusView: View {
+/// 중앙 상태 블록. 아이콘·제목·설명·후속 액션이 한 그룹으로 묶이고,
+/// 액션 유무와 무관하게 아이콘이 같은 높이에서 시작한다(위쪽 고정).
+private struct CenterStatusView<Accessory: View>: View {
     let systemName: String
     let title: String
     let message: String
     let tint: Color
+    @ViewBuilder var accessory: Accessory
 
     var body: some View {
         VStack(spacing: Spacing.sm) {
             Image(systemName: systemName)
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(tint.opacity(0.85))
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 40, height: 40)
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
+                        .strokeBorder(Color.hairline, lineWidth: 1)
+                }
+                .padding(.bottom, Spacing.xs)
+                .accessibilityHidden(true)
 
             Text(title)
                 .font(Typography.headline)
-                .foregroundStyle(Palette.label.opacity(0.84))
+                .foregroundStyle(Palette.label)
 
             Text(message)
                 .font(Typography.body)
@@ -1069,7 +1003,19 @@ private struct CenterStatusView: View {
                 .multilineTextAlignment(.center)
                 .lineSpacing(Spacing.xs)
                 .frame(maxWidth: 460)
+
+            accessory
+                .padding(.top, Spacing.md)
         }
-        .frame(maxWidth: .infinity, minHeight: 240)
+        .padding(.top, 72)
+        .frame(maxWidth: .infinity, minHeight: 240, alignment: .top)
+    }
+}
+
+extension CenterStatusView where Accessory == EmptyView {
+    init(systemName: String, title: String, message: String, tint: Color) {
+        self.init(systemName: systemName, title: title, message: message, tint: tint) {
+            EmptyView()
+        }
     }
 }

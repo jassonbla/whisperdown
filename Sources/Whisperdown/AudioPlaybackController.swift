@@ -22,6 +22,19 @@ final class AudioPlaybackController: NSObject, ObservableObject, AVAudioPlayerDe
             return
         }
 
+        if prepare(url: url) {
+            playLoadedPlayer()
+        }
+    }
+
+    /// 재생을 시작하지 않고 플레이어만 올린다 — 재생 전에도 위치를 옮길 수 있게.
+    /// 이미 같은 파일이 올라와 있으면 그대로 둔다.
+    @discardableResult
+    func prepare(url: URL) -> Bool {
+        if currentURL == url, player != nil {
+            return true
+        }
+
         do {
             stop()
             let player = try AVAudioPlayer(contentsOf: url)
@@ -32,10 +45,21 @@ final class AudioPlaybackController: NSObject, ObservableObject, AVAudioPlayerDe
             duration = player.duration
             currentTime = player.currentTime
             errorMessage = nil
-            playLoadedPlayer()
+            return true
         } catch {
             errorMessage = String(format: L10n.t("error.playback.failed", AppLanguage.current), error.localizedDescription)
+            return false
         }
+    }
+
+    func seek(to time: TimeInterval) {
+        guard let player else {
+            return
+        }
+
+        let nextTime = min(max(time, 0), max(player.duration, 0))
+        player.currentTime = nextTime
+        currentTime = nextTime
     }
 
     func seek(by delta: TimeInterval) {

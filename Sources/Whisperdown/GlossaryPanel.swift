@@ -45,20 +45,26 @@ struct GlossaryPanel: View {
 
             Spacer()
 
-            IconButton(systemName: "arrow.up.right.square") {
+            IconButton(systemName: "folder", label: L10n.t("glossary.panel.reveal", language)) {
                 store.saveGlossary(text)
                 store.revealGlossaryInFinder()
             }
-            .help(L10n.t("glossary.panel.reveal", language))
 
-            IconButton(systemName: "xmark") {
+            IconButton(systemName: "xmark", label: L10n.t("glossary.panel.close", language)) {
                 isOpen = false
             }
-            .help(L10n.t("glossary.panel.close", language))
         }
-        .padding(.horizontal, Spacing.md)
+        // 닫기(ghost) 글리프를 편집기 오른쪽 선에 맞춘다.
+        .padding(.leading, Spacing.md)
+        .padding(.trailing, Spacing.md - AppMetric.iconButtonGlyphInset)
         .frame(height: AppLayout.titleBarHeight)
         .background(Color.appBackground)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.hairline)
+                .frame(height: 1)
+                .allowsHitTesting(false)
+        }
     }
 
     private var editor: some View {
@@ -73,6 +79,7 @@ struct GlossaryPanel: View {
             }
 
             TextEditor(text: $text)
+                .accessibilityLabel(L10n.t("glossary.panel.title", language))
                 .font(Typography.mono)
                 .foregroundStyle(Palette.body)
                 .scrollContentBackground(.hidden)
@@ -81,7 +88,7 @@ struct GlossaryPanel: View {
         .background(Color.searchBackground)
         .overlay {
             RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous)
-                .strokeBorder(Color.hairline, lineWidth: 1)
+                .strokeBorder(Color.controlBorder, lineWidth: 1)
         }
         .clipShape(RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
         .padding(Spacing.md)
@@ -98,7 +105,14 @@ struct GlossaryPanel: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Spacing.md)
-            .padding(.bottom, Spacing.md)
+            // 사이드바·트랜스포트와 같은 하단 바 높이 — 세 구분선이 한 줄에 놓인다.
+            .frame(height: AppMetric.bottomBarHeight)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(Color.hairline)
+                    .frame(height: 1)
+                    .allowsHitTesting(false)
+            }
     }
 
     private func loadIfNeeded() {

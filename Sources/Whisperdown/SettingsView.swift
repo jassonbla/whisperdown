@@ -27,23 +27,68 @@ struct SettingsView: View {
         AppLanguage(rawValue: appLanguageRaw) ?? .en
     }
 
-    var body: some View {
-        TabView(selection: $navigation.selectedTab) {
-            GeneralSettingsView()
-                .tabItem {
-                    Label(L10n.t("settings.tab.general", language), systemImage: "gearshape")
-                }
-                .tag(SettingsTab.general)
+    @Environment(\.dismiss) private var dismiss
 
-            EngineSettingsView()
-                .tabItem {
-                    Label(L10n.t("settings.tab.engine", language), systemImage: "waveform")
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: Spacing.md) {
+                Text(L10n.t("settings.title", language))
+                    .font(Typography.headline)
+                    .foregroundStyle(Palette.label)
+                    .accessibilityAddTraits(.isHeader)
+
+                Spacer(minLength: Spacing.md)
+
+                IconButton(systemName: "xmark", label: L10n.t("action.close", language), iconSize: 11) {
+                    dismiss()
                 }
-                .tag(SettingsTab.engine)
+                .keyboardShortcut(.cancelAction)
+            }
+            .padding(.leading, Spacing.xl)
+            .padding(.trailing, Spacing.lg)
+            .padding(.top, Spacing.lg)
+            .padding(.bottom, Spacing.sm)
+
+            UnderlineTabs(
+                items: [
+                    (SettingsTab.general, L10n.t("settings.tab.general", language)),
+                    (SettingsTab.engine, L10n.t("settings.tab.engine", language))
+                ],
+                selection: $navigation.selectedTab
+            )
+            .padding(.horizontal, Spacing.xl)
+
+            Rectangle()
+                .fill(Color.hairline)
+                .frame(height: 1)
+
+            Group {
+                switch navigation.selectedTab {
+                case .general:
+                    GeneralSettingsView()
+                case .engine:
+                    EngineSettingsView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .environment(\.appLanguage, language)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.bg1)
+        .tooltipHost()
+    }
+}
+
+/// 설정 섹션의 대문자 모노 라벨.
+private struct SettingsSectionLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(Typography.overline)
+            .tracking(0.6)
+            .foregroundStyle(Palette.secondaryLabel)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -53,34 +98,29 @@ private struct GeneralSettingsView: View {
     @State private var markdownDirectoryPath = GeneralSettingsView.currentPath()
 
     var body: some View {
-        Form {
+        VStack(alignment: .leading, spacing: Spacing.xl) {
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text(L10n.t("settings.language", language))
-                    .font(Typography.emphasis)
-                    .foregroundStyle(Palette.label)
+                SettingsSectionLabel(text: L10n.t("settings.language", language))
 
-                Picker(L10n.t("settings.language", language), selection: $appLanguageRaw) {
-                    ForEach(AppLanguage.allCases) { lang in
-                        Text(lang.displayName).tag(lang.rawValue)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                SegmentedControl(
+                    items: AppLanguage.allCases.map { ($0.rawValue, $0.displayName) },
+                    selection: $appLanguageRaw
+                )
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(L10n.t("settings.language", language))
             }
 
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text(L10n.t("settings.markdownFolder.label", language))
-                    .font(Typography.emphasis)
-                    .foregroundStyle(Palette.label)
+                SettingsSectionLabel(text: L10n.t("settings.markdownFolder.label", language))
 
                 HStack(spacing: Spacing.sm) {
                     Text(markdownDirectoryPath)
-                        .font(Typography.caption)
+                        .font(AppTypography.meta)
                         .foregroundStyle(Palette.secondaryLabel)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .padding(.horizontal, Spacing.md)
-                        .frame(height: 28, alignment: .leading)
+                        .frame(height: AppMetric.controlHeight, alignment: .leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Palette.bg1Muted, in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                         .overlay {
@@ -91,6 +131,7 @@ private struct GeneralSettingsView: View {
                     Button(L10n.t("settings.markdownFolder.change", language)) {
                         chooseDirectory()
                     }
+                    .buttonStyle(ControlButtonStyle())
                 }
 
                 Text(L10n.t("settings.markdownFolder.hint", language))
@@ -134,15 +175,13 @@ private struct EngineSettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.lg) {
+            VStack(alignment: .leading, spacing: Spacing.xl) {
                 EngineDiagnosticsView(status: engineStatus) {
                     engineStatus = WhisperCppTranscriptionEngine().status()
                 }
 
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Text(L10n.t("engine.diagnostics.model", language))
-                        .font(Typography.emphasis)
-                        .foregroundStyle(Palette.label)
+                    SettingsSectionLabel(text: L10n.t("engine.diagnostics.model", language))
 
                     ModelListView(manager: manager)
                 }

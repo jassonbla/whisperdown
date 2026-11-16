@@ -36,6 +36,7 @@ struct OnboardingSheet: View {
         .frame(width: 480)
         .frame(maxHeight: 680)
         .background(Palette.bg1)
+        .tooltipHost()
         .onChange(of: manager.states) {
             engineStatus = WhisperCppTranscriptionEngine().status()
         }
@@ -57,10 +58,15 @@ struct OnboardingSheet: View {
 
     private var welcome: some View {
         VStack(spacing: Spacing.lg) {
-            Image(systemName: "waveform.circle.fill")
-                .font(.system(size: 44, weight: .regular))
-                .foregroundStyle(Palette.label.opacity(0.9))
+            Image(systemName: "waveform")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Palette.label)
+                .frame(width: 48, height: 48)
+                .overlay {
+                    Rectangle().strokeBorder(Color.controlBorder, lineWidth: 1)
+                }
                 .padding(.top, Spacing.xxl)
+                .accessibilityHidden(true)
 
             VStack(spacing: Spacing.sm) {
                 Text("Whisperdown")
@@ -78,13 +84,8 @@ struct OnboardingSheet: View {
                 step = .diagnostics
             } label: {
                 Text(L10n.t("onboarding.welcome.start", language))
-                    .font(Typography.emphasis)
-                    .foregroundStyle(Palette.primaryForeground)
-                    .padding(.horizontal, Spacing.xl)
-                    .frame(height: 34)
-                    .background(Palette.primary, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ControlButtonStyle(variant: .solid, height: 34, horizontalPadding: Spacing.xl))
             .padding(.top, Spacing.sm)
             .padding(.bottom, Spacing.xxl)
         }
@@ -113,15 +114,15 @@ struct OnboardingSheet: View {
                     }
                 }
                 .padding(.horizontal, Spacing.xl)
+                .padding(.bottom, Spacing.xl)
             }
 
             sheetFooter {
                 if initialStep == .welcome {
                     // 최초 실행 온보딩: welcome → diagnostics → modelPicker 선형 흐름 유지
                     Button(L10n.t("onboarding.diagnostics.skip", language)) { finish() }
-                        .buttonStyle(.plain)
-                        .font(Typography.body)
-                        .foregroundStyle(Palette.secondaryLabel)
+                        .buttonStyle(ControlButtonStyle(variant: .ghost, height: 26, horizontalPadding: Spacing.sm))
+                        .padding(.leading, -Spacing.sm)
 
                     Spacer()
 
@@ -129,20 +130,14 @@ struct OnboardingSheet: View {
                         step = .modelPicker
                     } label: {
                         Text(L10n.t("onboarding.diagnostics.next", language))
-                            .font(Typography.emphasis)
-                            .foregroundStyle(Palette.primaryForeground)
-                            .padding(.horizontal, Spacing.lg)
-                            .frame(height: 30)
-                            .background(Palette.primary, in: Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ControlButtonStyle(variant: .solid, height: 30, horizontalPadding: Spacing.lg))
                 } else {
                     // Settings에서 상태 확인 목적으로 직접 진입한 경우: 확인만 하고 닫을 수 있어야 한다 —
                     // 모델 변경은 원할 때만 별도 버튼으로 분리.
                     Button(L10n.t("onboarding.diagnostics.close", language)) { finish() }
-                        .buttonStyle(.plain)
-                        .font(Typography.body)
-                        .foregroundStyle(Palette.secondaryLabel)
+                        .buttonStyle(ControlButtonStyle(variant: .ghost, height: 26, horizontalPadding: Spacing.sm))
+                        .padding(.leading, -Spacing.sm)
 
                     Spacer()
 
@@ -150,17 +145,12 @@ struct OnboardingSheet: View {
                         step = .modelPicker
                     } label: {
                         Text(L10n.t("onboarding.diagnostics.changeModel", language))
-                            .font(Typography.emphasis)
-                            .foregroundStyle(Palette.primaryForeground)
-                            .padding(.horizontal, Spacing.lg)
-                            .frame(height: 30)
-                            .background(Palette.primary, in: Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ControlButtonStyle(variant: .solid, height: 30, horizontalPadding: Spacing.lg))
                 }
             }
         }
-        .padding(.vertical, Spacing.xl)
+        .padding(.top, Spacing.xl)
     }
 
     // MARK: - Step 3: 모델 선택
@@ -174,7 +164,7 @@ struct OnboardingSheet: View {
             .padding(.bottom, Spacing.lg)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.lg) {
+                VStack(alignment: .leading, spacing: Spacing.xl) {
                     ModelListView(manager: manager)
 
                     DiarizationSetupView(manager: manager)
@@ -182,13 +172,13 @@ struct OnboardingSheet: View {
                     SummarySetupView(manager: manager)
                 }
                 .padding(.horizontal, Spacing.xl)
+                .padding(.bottom, Spacing.xl)
             }
 
             sheetFooter {
                 Button(L10n.t("onboarding.modelPicker.back", language)) { step = .diagnostics }
-                    .buttonStyle(.plain)
-                    .font(Typography.body)
-                    .foregroundStyle(Palette.secondaryLabel)
+                    .buttonStyle(ControlButtonStyle(variant: .ghost, height: 26, horizontalPadding: Spacing.sm))
+                    .padding(.leading, -Spacing.sm)
 
                 Spacer()
 
@@ -196,16 +186,11 @@ struct OnboardingSheet: View {
                     finish()
                 } label: {
                     Text(manager.isAnyDownloadActive ? L10n.t("onboarding.modelPicker.continueBackground", language) : L10n.t("onboarding.modelPicker.done", language))
-                        .font(Typography.emphasis)
-                        .foregroundStyle(Palette.primaryForeground)
-                        .padding(.horizontal, Spacing.lg)
-                        .frame(height: 30)
-                        .background(Palette.primary, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ControlButtonStyle(variant: .solid, height: 30, horizontalPadding: Spacing.lg))
             }
         }
-        .padding(.vertical, Spacing.xl)
+        .padding(.top, Spacing.xl)
     }
 
     // MARK: - 공통
@@ -229,7 +214,13 @@ struct OnboardingSheet: View {
             content()
         }
         .padding(.horizontal, Spacing.xl)
-        .padding(.top, Spacing.sm)
+        .padding(.vertical, Spacing.lg)
+        // 스크롤 영역이 푸터 아래로 잘리는 지점을 구분선으로 표시한다.
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.hairline)
+                .frame(height: 1)
+        }
     }
 
     private func finish() {
@@ -252,7 +243,7 @@ struct EngineDiagnosticsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
+        VStack(alignment: .leading, spacing: Spacing.xl) {
             VStack(spacing: 0) {
                 diagnosticRow(
                     title: "whisper-cli",
@@ -305,19 +296,15 @@ struct EngineDiagnosticsView: View {
                             }
                         } label: {
                             Label(didCopyCommand ? L10n.t("engine.diagnostics.copied", language) : L10n.t("engine.diagnostics.copy", language), systemImage: didCopyCommand ? "checkmark" : "doc.on.doc")
-                                .font(Typography.caption)
-                                .foregroundStyle(didCopyCommand ? Palette.success : Palette.secondaryLabel)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(ControlButtonStyle(variant: .ghost, height: 24, horizontalPadding: Spacing.sm))
 
                         Button {
                             onRefresh()
                         } label: {
                             Label(L10n.t("engine.diagnostics.recheck", language), systemImage: "arrow.clockwise")
-                                .font(Typography.caption)
-                                .foregroundStyle(Palette.secondaryLabel)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(ControlButtonStyle(variant: .ghost, height: 24, horizontalPadding: Spacing.sm))
                     }
                 }
             }
@@ -329,8 +316,9 @@ struct EngineDiagnosticsView: View {
         let diarizationStatus = SpeakerDiarizationEngine().status()
 
         return VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text(L10n.t("diarization.section.title", language))
-                .font(Typography.caption)
+            Text(L10n.t("diarization.section.title", language).uppercased())
+                .font(Typography.overline)
+                .tracking(0.6)
                 .foregroundStyle(Palette.secondaryLabel)
 
             VStack(spacing: 0) {
@@ -367,18 +355,19 @@ struct EngineDiagnosticsView: View {
         HStack(spacing: Spacing.md) {
             Group {
                 if isFound {
-                    Image(systemName: "checkmark.circle.fill")
+                    Image(systemName: "checkmark")
                         .foregroundStyle(Palette.success)
                 } else if isOptional {
-                    // 선택 기능의 미설치는 경고가 아니다 — 조용한 빈 원
-                    Image(systemName: "circle")
+                    // 선택 기능의 미설치는 경고가 아니다 — 조용한 줄표
+                    Image(systemName: "minus")
                         .foregroundStyle(Palette.tertiaryLabel)
                 } else {
-                    Image(systemName: "exclamationmark.circle.fill")
+                    Image(systemName: "exclamationmark.triangle")
                         .foregroundStyle(Palette.warning)
                 }
             }
-            .font(.system(size: 13, weight: .medium))
+            .font(.system(size: 11, weight: .semibold))
+            .frame(width: 14, alignment: .leading)
 
             Text(title)
                 .font(Typography.emphasis)
@@ -387,13 +376,15 @@ struct EngineDiagnosticsView: View {
             Spacer(minLength: Spacing.md)
 
             Text(detail)
-                .font(Typography.caption)
+                .font(AppTypography.meta)
                 .foregroundStyle(Palette.tertiaryLabel)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                // 잘린 경로의 전체 값은 툴팁으로 확인한다.
+                .tooltip(detail)
         }
         .padding(.horizontal, Spacing.md)
-        .frame(height: 40)
+        .frame(height: 36)
     }
 }
 
@@ -524,13 +515,8 @@ struct DiarizationSetupView: View {
                 installAll()
             } label: {
                 Text(L10n.t("diarization.install", language))
-                    .font(Typography.emphasis)
-                    .foregroundStyle(Palette.primaryForeground)
-                    .padding(.horizontal, Spacing.md)
-                    .frame(height: 26)
-                    .background(Palette.primary, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ControlButtonStyle(variant: .solid, height: 26, horizontalPadding: Spacing.md))
 
         case .downloading(let fraction):
             HStack(spacing: Spacing.sm) {
@@ -542,18 +528,14 @@ struct DiarizationSetupView: View {
                 CircularProcessingIndicator()
                     .frame(width: 14, height: 14)
 
-                Button {
+                IconButton(systemName: "xmark", label: L10n.t("action.cancel", language), size: 22, iconSize: 10) {
                     cancelAll()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(Palette.tertiaryLabel)
                 }
-                .buttonStyle(.plain)
             }
 
         case .installed:
             HStack(spacing: Spacing.sm) {
-                Label(L10n.t("diarization.installed", language), systemImage: "checkmark.circle.fill")
+                Label(L10n.t("diarization.installed", language), systemImage: "checkmark")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.success)
 
@@ -562,10 +544,9 @@ struct DiarizationSetupView: View {
                     manager.refreshInstalled()
                 } label: {
                     Text(L10n.t("diarization.remove", language))
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.secondaryLabel)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ControlButtonStyle(variant: .ghost, height: 24, horizontalPadding: Spacing.sm))
+                .padding(.trailing, -Spacing.sm)
             }
         }
     }
@@ -606,9 +587,7 @@ struct SummarySetupView: View {
                 .padding(.vertical, Spacing.sm)
 
             ForEach(SummaryModelCatalog.all) { model in
-                Divider()
-                    .overlay(Color.hairline.opacity(0.6))
-                    .padding(.leading, Spacing.md)
+                Divider().overlay(Color.hairline)
 
                 SummaryModelRow(
                     model: model,
@@ -678,7 +657,7 @@ struct SummarySetupView: View {
     private var appleBadge: some View {
         switch SummaryEngine.appleAvailability() {
         case .available:
-            Label(L10n.t("summary.status.available", language), systemImage: "checkmark.circle.fill")
+            Label(L10n.t("summary.status.available", language), systemImage: "checkmark")
                 .font(Typography.caption)
                 .foregroundStyle(Palette.success)
         case .unsupportedOS:
@@ -700,13 +679,8 @@ struct SummarySetupView: View {
                     NotificationCenter.default.post(name: .openGlossaryRequested, object: nil)
                 } label: {
                     Text(L10n.t("summary.glossary.edit", language))
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.label.opacity(0.84))
-                        .padding(.horizontal, Spacing.md)
-                        .frame(height: 24)
-                        .background(Color.controlSurface.opacity(0.7), in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ControlButtonStyle(height: 26))
 
                 Text(L10n.t("summary.glossary.hint", language))
                     .font(Typography.caption)
@@ -728,10 +702,8 @@ struct SummarySetupView: View {
                         NotificationCenter.default.post(name: .summaryBackendChanged, object: nil)
                     } label: {
                         Text(L10n.t("summary.runtime.removeAll", language))
-                            .font(Typography.caption)
-                            .foregroundStyle(Palette.secondaryLabel)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ControlButtonStyle(variant: .ghost, height: 24, horizontalPadding: Spacing.sm))
                 }
             }
         }
@@ -739,12 +711,11 @@ struct SummarySetupView: View {
 
     private func radio(isOn: Bool, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                .font(Typography.headline)
-                .foregroundStyle(isOn ? Palette.success : (enabled ? Palette.secondaryLabel : Palette.tertiaryLabel))
+            RadioMark(isOn: isOn, isEnabled: enabled)
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
     private func isLocalSelected(_ model: SummaryModel) -> Bool {
@@ -800,12 +771,12 @@ private struct SummaryModelRow: View {
             Button {
                 onSelect()
             } label: {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(Typography.headline)
-                    .foregroundStyle(isSelected ? Palette.success : (isSelectable ? Palette.secondaryLabel : Palette.tertiaryLabel))
+                RadioMark(isOn: isSelected, isEnabled: isSelectable)
             }
             .buttonStyle(.plain)
             .disabled(!isSelectable)
+            .accessibilityLabel(model.displayName)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: Spacing.sm) {
@@ -855,20 +826,15 @@ private struct SummaryModelRow: View {
             .foregroundStyle(color)
             .padding(.horizontal, 6)
             .padding(.vertical, 1)
-            .background(color.opacity(0.12), in: Capsule())
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
     }
 
     @ViewBuilder
     private var trailingControl: some View {
         switch state {
         case .idle:
-            Button(action: onDownload) {
-                Image(systemName: "arrow.down.circle")
-                    .font(Typography.headline)
-                    .foregroundStyle(fit == .insufficient ? Palette.tertiaryLabel : Palette.secondaryLabel)
-            }
-            .buttonStyle(.plain)
-            .disabled(fit == .insufficient)
+            IconButton(systemName: "arrow.down", label: L10n.t("model.download.help", language), variant: .outline, size: 26, iconSize: 11, action: onDownload)
+                .disabled(fit == .insufficient)
 
         case .downloading(let fraction, _, _):
             HStack(spacing: Spacing.sm) {
@@ -880,33 +846,23 @@ private struct SummaryModelRow: View {
                 CircularProcessingIndicator()
                     .frame(width: 14, height: 14)
 
-                Button(action: onCancel) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(Palette.tertiaryLabel)
-                }
-                .buttonStyle(.plain)
+                IconButton(systemName: "xmark", label: L10n.t("action.cancel", language), size: 22, iconSize: 10, action: onCancel)
             }
 
         case .failed:
-            Button(action: onDownload) {
-                Image(systemName: "exclamationmark.arrow.circlepath")
-                    .font(Typography.headline)
-                    .foregroundStyle(Palette.warning)
-            }
-            .buttonStyle(.plain)
+            IconButton(systemName: "exclamationmark.arrow.circlepath", label: L10n.t("model.retry", language), variant: .destructive, size: 26, iconSize: 11, action: onDownload)
 
         case .installed:
             HStack(spacing: Spacing.sm) {
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: "checkmark")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.success)
 
                 Button(action: onRemove) {
                     Text(L10n.t("summary.model.remove", language))
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.secondaryLabel)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ControlButtonStyle(variant: .ghost, height: 24, horizontalPadding: Spacing.sm))
+                .padding(.trailing, -Spacing.sm)
             }
         }
     }
@@ -938,7 +894,7 @@ private struct ModelRow: View {
                             .foregroundStyle(Palette.success)
                             .padding(.horizontal, 6)
                             .frame(height: 16)
-                            .background(Palette.success.opacity(0.12), in: Capsule())
+                            .background(Palette.success.opacity(0.12), in: RoundedRectangle(cornerRadius: AppRadius.control, style: .continuous))
                     }
                 }
 
@@ -959,15 +915,9 @@ private struct ModelRow: View {
     private var trailing: some View {
         switch state {
         case .idle:
-            Button {
+            IconButton(systemName: "arrow.down", label: L10n.t("model.download.help", language), variant: .outline, size: 26, iconSize: 11) {
                 onAction(.download)
-            } label: {
-                Image(systemName: "arrow.down.circle")
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundStyle(Palette.secondaryLabel)
             }
-            .buttonStyle(.plain)
-            .help(L10n.t("model.download.help", language))
 
         case .downloading(let fraction, _, _):
             HStack(spacing: Spacing.sm) {
@@ -976,38 +926,30 @@ private struct ModelRow: View {
                     .monospacedDigit()
                     .foregroundStyle(Palette.secondaryLabel)
 
-                ProgressView(value: fraction)
-                    .progressViewStyle(.linear)
+                LinearProgressBar(value: fraction)
                     .frame(width: 90)
 
-                Button {
+                IconButton(systemName: "xmark", label: L10n.t("action.cancel", language), size: 22, iconSize: 10) {
                     onAction(.cancel)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Palette.tertiaryLabel)
                 }
-                .buttonStyle(.plain)
-                .help(L10n.t("action.cancel", language))
             }
 
         case .failed(let message):
             HStack(spacing: Spacing.sm) {
-                Image(systemName: "exclamationmark.circle.fill")
+                Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 13))
                     .foregroundStyle(Palette.warning)
-                    .help(message)
+                    .tooltip(message)
 
                 Button(L10n.t("model.retry", language)) {
                     onAction(.download)
                 }
-                .buttonStyle(.plain)
-                .font(Typography.caption)
-                .foregroundStyle(Palette.secondaryLabel)
+                .buttonStyle(ControlButtonStyle(variant: .ghost, height: 26, horizontalPadding: Spacing.sm))
+                .padding(.trailing, -Spacing.sm)
             }
 
         case .installed:
-            Label(L10n.t("model.installed", language), systemImage: "checkmark.circle.fill")
+            Label(L10n.t("model.installed", language), systemImage: "checkmark")
                 .font(Typography.caption)
                 .foregroundStyle(Palette.success)
         }
